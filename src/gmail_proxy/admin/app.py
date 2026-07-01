@@ -24,7 +24,7 @@ from .google_auth import GoogleOIDC, new_pkce, random_token
 _HERE = Path(__file__).parent
 _ALL_CATEGORY_NAMES = ["primary", "social", "promotions", "updates", "forums"]
 
-# Argument specs for the dry-run playground (tool -> [(field, kind)]).
+# Argument specs for the tool tester (tool -> [(field, kind)]).
 _PLAYGROUND = {
     "gmail_list_messages": [("category", "text"), ("unread_only", "bool"),
                             ("from", "text"), ("subject", "text"), ("newer_than", "text"),
@@ -360,7 +360,7 @@ def build_admin_app(ctx: AppContext) -> FastAPI:
                 result = {"id": id, "error": "message id not found"}
         return page(request, "explain.html", result=result, id=id or "")
 
-    # --- dry-run playground ----------------------------------------------
+    # --- tool tester -----------------------------------------------------
     @app.get("/playground", response_class=HTMLResponse)
     def playground_view(request: Request, tool: str | None = None):
         if (r := guard(request)):
@@ -389,7 +389,7 @@ def build_admin_app(ctx: AppContext) -> FastAPI:
             elif raw:
                 args[field] = raw
         try:
-            result = tools.call_tool(ctx, "admin:dryrun", ctx.policy.mode, tool, args,
+            result = tools.call_tool(ctx, "admin:tester", ctx.policy.mode, tool, args,
                                      enforce_runtime=False)
         except errors.ProxyError as e:
             result = {"error": e.to_public(), "detail": e.detail}

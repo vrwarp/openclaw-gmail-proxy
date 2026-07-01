@@ -181,7 +181,7 @@ you.)
 ## Admin web UI (config + debugging)
 
 Dashboard · Configuration · Audit log (allow/deny + reason, tamper-evident) ·
-Policy explain (why a given message is/ isn't in scope) · Dry-run tester ·
+Policy explain (why a given message is/ isn't in scope) · Tool tester ·
 Credentials (issue/rotate/revoke) · Cache stats · Kill-switch. Screenshots in
 [`docs/screenshots/`](docs/screenshots/).
 

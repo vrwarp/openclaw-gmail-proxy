@@ -1,8 +1,10 @@
 {% extends "base.html" %}
-{% block title %}Dry-run tester{% endblock %}
+{% block title %}Tool tester{% endblock %}
 {% block content %}
-<h1>Dry-run tool tester</h1>
-<p class="sub">Invoke a tool exactly as OpenClaw would (full policy enforcement, no rate-limit/freeze) and inspect the result.</p>
+<h1>Tool tester</h1>
+<p class="sub">Invoke a tool exactly as OpenClaw would — full policy enforcement, no rate-limit/kill-switch — and inspect the result.</p>
+<div class="banner warn">⚠ Not a dry run. Mutating tools (label changes, archive, trash) really run
+  against your mailbox — the same as if OpenClaw called them.</div>
 
 <form class="panel" method="post" action="/playground" id="pg">
   <div class="field">
