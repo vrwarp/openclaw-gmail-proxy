@@ -143,6 +143,38 @@ trail. If you set `TOKEN_ENCRYPTION_KEY` out-of-band the token is encrypted with
 that; otherwise a key is generated once and kept in `keys/token_fernet.key` —
 losing it just means reconnecting on the Setup page.
 
+### NAS / Synology — locked-down bind mount
+
+To keep the data off a Docker named volume and inside a shared folder that only
+a dedicated user can read, bind-mount that folder and tell the container which
+host user to run as. The image honours **`PUID`/`PGID`** (the LinuxServer.io
+convention): on startup it remaps its runtime user to those ids, chowns `/data`,
+then drops privileges before running the app.
+
+1. In DSM create a non-admin `docker_user` (+ `docker_group`) and grant it
+   **Read/Write** on the shared folder you'll mount; set **Everyone → No
+   access**. Find its ids with `id docker_user` (or a Task Scheduler `id` job).
+2. Set `PUID`/`PGID` to those numbers and bind-mount the folder to **`/data`**
+   (the container's data dir — not `/app/data`):
+
+   ```yaml
+   environment:
+     PUID: "1026"   # uid from `id docker_user`
+     PGID: "100"    # gid from `id docker_user`
+   volumes:
+     - /volume1/docker/openclaw-gmail-proxy/data:/data
+     - /volume1/docker/openclaw-gmail-proxy/policy.yaml:/app/policy.yaml
+   ```
+
+   In Container Manager's GUI, add `PUID`/`PGID` on the **Environment** tab and
+   the folder on the **Volume** tab with mount path `/data`.
+
+Because the container runs as `docker_user`, it can read/write the folder while
+every other NAS user is blocked. (Prefer Docker's native `user:` directive
+instead? Set it and the entrypoint skips the remap — but then you must make the
+mounted folder writable by that uid yourself; `PUID`/`PGID` do the chown for
+you.)
+
 ## Admin web UI (config + debugging)
 
 Dashboard · Configuration · Audit log (allow/deny + reason, tamper-evident) ·
