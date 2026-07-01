@@ -313,7 +313,11 @@ def build_admin_app(ctx: AppContext) -> FastAPI:
         except Exception:  # noqa: BLE001
             return back("could not obtain a refresh token — revoke prior access and retry")
         ctx.connect_gmail(token)
-        resp = RedirectResponse("/setup?connected=1", 303)
+        # The token exchange can succeed while the first real Gmail call fails
+        # (e.g. the Gmail API is not enabled). Verify before claiming success so
+        # the actual reason is shown instead of a silent "not connected".
+        to = "/setup?connected=1" if ctx.gmail_status().get("connected") else "/setup"
+        resp = RedirectResponse(to, 303)
         resp.delete_cookie("gmail_tx")
         return resp
 

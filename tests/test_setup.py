@@ -29,6 +29,15 @@ class _FakeGoogle:
         return getattr(self._inner, name)
 
 
+class _FakeGoogleApiDisabled(_FakeGoogle):
+    """GoogleGmail whose first real call fails because the Gmail API is off."""
+
+    def get_profile(self):
+        from gmail_proxy.gmail.client import GmailError
+        raise GmailError('<HttpError 403 "Gmail API has not been used in project '
+                         '123456 before or it is disabled." reason: "accessNotConfigured">')
+
+
 def test_not_connected_backend_denies(tmp_path):
     ctx = _google_ctx(tmp_path)
     assert ctx.gmail_status()["connected"] is False
@@ -132,6 +141,36 @@ def test_connect_flow_on_default_mock_backend(tmp_path, monkeypatch):
     assert ctx.gmail_status()["connected"] is True
     res = tools.call_tool(ctx, "c", "read_write", "gmail_list_messages", {"category": "promotions"})
     assert res["_control"]["count"] >= 1
+
+
+def test_connect_surfaces_gmail_api_disabled(tmp_path, monkeypatch):
+    """A 403 AccessNotConfigured on the first Gmail call must be shown to the
+    operator (with the Enable-the-API hint), not silently hidden."""
+    monkeypatch.setattr("gmail_proxy.gmail.google_client.GoogleGmail", _FakeGoogleApiDisabled)
+    monkeypatch.setattr(
+        "gmail_proxy.gmail.oauth.exchange_code",
+        lambda client, code, verifier: {
+            "access_token": "a", "refresh_token": "r",
+            "token_uri": "t", "scopes": ["https://www.googleapis.com/auth/gmail.modify"]},
+    )
+    ctx = _google_ctx(tmp_path)
+    client = TestClient(build_admin_app(ctx))
+    client.post("/login", data={"token": "s"})
+    client.post("/setup/gmail/client", data={
+        "client_id": "cid", "client_secret": "sec",
+        "redirect_uri": "http://localhost:8081/setup/gmail/callback"})
+    r = client.get("/setup/gmail/connect", follow_redirects=False)
+    state = parse_qs(urlparse(r.headers["location"]).query)["state"][0]
+    r = client.get(f"/setup/gmail/callback?code=abc&state={state}", follow_redirects=False)
+
+    # Token exchange succeeded but the API is off -> not marked connected.
+    assert r.status_code == 303 and r.headers["location"] == "/setup"
+    st = ctx.gmail_status()
+    assert st["connected"] is False
+    assert "not enabled" in st["error_hint"] and "accessNotConfigured" in st["error"]
+    # And the Setup page shows the actionable error + enable link.
+    body = client.get("/setup").text
+    assert "Enable the Gmail API" in body and "accessNotConfigured" in body
 
 
 def test_setup_page_renders(tmp_path):
