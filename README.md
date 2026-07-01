@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/vrwarp/openclaw-gmail-proxy/actions/workflows/ci.yml/badge.svg)](https://github.com/vrwarp/openclaw-gmail-proxy/actions/workflows/ci.yml)
 [![Docker](https://github.com/vrwarp/openclaw-gmail-proxy/actions/workflows/docker.yml/badge.svg)](https://github.com/vrwarp/openclaw-gmail-proxy/actions/workflows/docker.yml)
+[![Docker Hub](https://img.shields.io/docker/pulls/vrwarp/openclaw-gmail-proxy?label=docker%20hub)](https://hub.docker.com/r/vrwarp/openclaw-gmail-proxy)
 
 A **category-scoped Gmail proxy** for [OpenClaw](https://openclaw.ai/). Give an
 autonomous OpenClaw agent access to **only** the parts of your mailbox you
@@ -122,15 +123,17 @@ Credentials (issue/rotate/revoke) · Cache stats · Kill-switch. Screenshots in
 
 ## Container images
 
-Prebuilt images are published to GHCR (and Docker Hub, if configured):
+Prebuilt images are published to **GHCR** and **[Docker Hub](https://hub.docker.com/r/vrwarp/openclaw-gmail-proxy)**:
 
 ```bash
-docker pull ghcr.io/vrwarp/openclaw-gmail-proxy:latest
+docker pull ghcr.io/vrwarp/openclaw-gmail-proxy:latest   # GitHub Container Registry
+docker pull vrwarp/openclaw-gmail-proxy:latest           # Docker Hub
 ```
 
 To deploy the published image, set
-`image: ghcr.io/vrwarp/openclaw-gmail-proxy:latest` in `docker-compose.yml` and
-remove the `build:` line. Tags: `latest`, semver (`v1.2.3`), branch, and `sha`.
+`image: vrwarp/openclaw-gmail-proxy:latest` (or the `ghcr.io/...` equivalent) in
+`docker-compose.yml` and remove the `build:` line. Tags: `latest`, semver
+(`v1.2.3`), branch, and `sha`.
 
 ## Development
 
