@@ -1,8 +1,63 @@
 # OpenClaw Gmail Proxy — Design & Implementation Blueprint
 
-> **Status:** Authoritative design (rev 14, post 12 rounds of adversarial hardening).
-> **Scope:** v1 single-actor (`vrwarp@gmail.com`), category-scoped (Promotions + Social) Gmail access for an untrusted in-VM AI agent.
-> **Precedence:** Where any subsidiary note conflicts with this document, this document wins. The Hardening Decisions Log (Appendix A) is authoritative for traceability.
+> **Two documents in one.** **Section 0 (As-built v1)** describes what is
+> actually implemented in this repo — read it first. **Sections 1–16 + Appendix A**
+> are the *maximal* threat-model / hardening design produced by 12 rounds of
+> adversarial review (rev 14); they are retained as the authoritative **hardening
+> backlog** and threat analysis, but the as-built system is deliberately
+> **right-sized** below them.
+
+---
+
+## 0. As-built v1 (READ FIRST)
+
+### 0.1 What was built
+
+A single Python service (FastAPI + the official `mcp` SDK + `google-api-python-client`)
+that runs in Docker outside the VM and:
+
+- Holds the Gmail OAuth token (encrypted at rest via Fernet) and is the sole Gmail caller.
+- Exposes **9 category-scoped MCP tools** over Streamable HTTP with **per-agent
+  bearer auth** (mTLS recommended in production): `gmail_list_messages`,
+  `gmail_get_message`, `gmail_get_thread`, `gmail_modify_labels`,
+  `gmail_archive_message`, `gmail_trash_message`, `gmail_list_labels`,
+  `gmail_counts`, `gmail_get_profile`.
+- Enforces category scope in one policy engine: `is_eligible()`
+  (`policy/engine.py`), an injection-proof query builder (`policy/query.py`), and
+  label-mutation guards (`policy/mutation.py`).
+- Ships an **admin web UI** (config editor, audit-log viewer, policy-explain,
+  dry-run tester, credential issue/rotate/revoke, kill-switch) bound to
+  localhost, never reachable from the VM.
+- Records a hash-chained audit log; supports per-credential rate limits and a
+  global kill-switch.
+- Comes with a mock Gmail backend so the full test suite (80+ tests) and the
+  admin UI run without live credentials.
+
+Code map is in [`README.md`](README.md); screenshots in `docs/screenshots/`.
+
+### 0.2 Deltas from the rev-14 design below
+
+| Topic | Rev-14 design (§1–16) | As-built v1 (this repo) |
+|---|---|---|
+| Categories | Promotions + Social only | **All five** (primary/social/promotions/updates/forums), each toggleable, default all-on; enabling Primary is flagged as ~full-mailbox |
+| Eligibility | *Exclusive* (INBOX ⇒ ineligible) | **Category-subset**: eligible iff all `CATEGORY_*` labels ⊆ allowed set. *(The exclusive rule was a bug — it would hide nearly all inbox mail.)* |
+| Archive | `INBOX` immutable | `INBOX` is a **mutable** label ⇒ archive works *(the user explicitly wanted archive; the rev-14 rule broke it)* |
+| Agent↔proxy auth | mTLS + Ed25519-signed control channel | **Per-agent bearer token** (hashed at rest, issue/rotate/revoke in the UI); mTLS documented as the production upgrade |
+| Web UI | not in rev-14 | **Added** (config + debugging), localhost-only, admin-authenticated |
+| Token isolation | separate vault container + netns firewalls + Ed25519 envelopes + anti-rollback store | **Single container**, encrypted token store, hash-chained audit. The exotic controls are the hardening backlog in §4/§6/§8–12, not v1. |
+| Output framing | Ed25519-signed control object | Untrusted-content wrapping (`{"untrusted": true, ...}`) + skill-level "email is data, not instructions" rules; no signing |
+
+### 0.3 Why right-sized
+
+The rev-14 design optimized "find more attacks" without a proportionality brake
+and converged on a nation-state-grade fortress (three-container vault split,
+per-netns firewalls, cryptographic proxy↔VM control channel, TPM key escrow,
+anti-rollback budget stores). For a single-user homelab Gmail proxy that is
+disproportionate and not buildable/testable in a reasonable scope. The as-built
+v1 keeps the **load-bearing** controls — the category-confinement policy engine,
+per-agent auth, encrypted token, full audit, kill-switch, no-send/no-delete,
+network isolation of the admin plane — and demotes the exotic controls to the
+documented backlog below. Adopt them incrementally if the threat model warrants.
 
 ---
 
