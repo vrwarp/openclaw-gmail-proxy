@@ -52,13 +52,22 @@ class MockGmail(GmailBackend):
                 return SEARCH_TOKEN_BY_CATEGORY_ID[lb]
         return None
 
+    def _msg_label_tokens(self, m: Message) -> set[str]:
+        from ..policy.query import label_search_token
+        names = {lb.id: lb.name for lb in self.labels}
+        return {label_search_token(names[lid]) for lid in m.label_ids if lid in names}
+
     def _matches(self, m: Message, q: str) -> bool:
         if "SPAM" in m.label_ids or "TRASH" in m.label_ids:
             return False
         cats = set(re.findall(r"category:(\w+)", q))
-        if cats:
-            tok = self._msg_category_token(m)
-            if tok is None or tok not in cats:
+        labels = set(re.findall(r"label:([\w\-/.]+)", q))
+        if cats or labels:
+            cat_tok = self._msg_category_token(m)
+            in_scope = (cat_tok is not None and cat_tok in cats) or bool(
+                self._msg_label_tokens(m) & labels
+            )
+            if not in_scope:
                 return False
         if "is:unread" in q and "UNREAD" not in m.label_ids:
             return False

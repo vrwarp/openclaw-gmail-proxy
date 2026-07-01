@@ -47,11 +47,15 @@ def _resolve(name: str, labels: list[Label]) -> Label:
     raise errors.ProxyError(400, "label_unresolvable", f"unknown label: {name!r}")
 
 
-def _check_mutable(label: Label, policy: Policy) -> None:
+def _check_mutable(label: Label, policy: Policy, allowed_label_ids: frozenset[str]) -> None:
     if label.id in ALL_CATEGORY_ID_SET:
         raise errors.ProxyError(403, "category_mutation_forbidden", label.id)
     if label.id in ("SPAM", "TRASH"):
         raise errors.ProxyError(403, "label_immutable", label.id)
+    # Eligibility-granting labels are immutable: adding one would smuggle a
+    # message into scope, removing one would smuggle it out.
+    if label.id in allowed_label_ids:
+        raise errors.ProxyError(403, "label_immutable", f"eligibility label {label.id} is immutable")
     if label.type == "system":
         if label.id not in policy.mutable_labels:
             raise errors.ProxyError(403, "label_immutable", f"system label {label.id} not mutable")
@@ -75,6 +79,7 @@ def validate_mutation(
     remove_labels: list[str] | None,
     policy: Policy,
     labels: list[Label],
+    allowed_label_ids: frozenset[str] = frozenset(),
 ) -> ResolvedMutation:
     """Resolve + authorize a requested label mutation.  Raises ``ProxyError``."""
     if policy.mode == "read_only":
@@ -85,7 +90,7 @@ def validate_mutation(
     for names, out in ((add_labels or [], add_ids), (remove_labels or [], remove_ids)):
         for name in names:
             label = _resolve(name, labels)
-            _check_mutable(label, policy)
+            _check_mutable(label, policy, allowed_label_ids)
             out.append(label.id)
 
     add_set, remove_set = set(add_ids), set(remove_ids)

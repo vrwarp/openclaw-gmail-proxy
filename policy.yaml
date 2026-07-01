@@ -12,6 +12,12 @@ mode: read_write
 # want promotional/social triage.
 allowed_categories: [primary, social, promotions, updates, forums]
 
+# User label NAMES that ALSO grant access, in addition to categories: a message
+# carrying one of these is in scope regardless of its category. These labels are
+# automatically immutable to the agent (it can't add/remove them). Broad/system
+# labels are rejected. Example: [Newsletters, AI-Inbox]. Empty = categories only.
+allowed_labels: []
+
 # System labels the agent may toggle.  INBOX => archive/unarchive is allowed;
 # UNREAD => mark read/unread; STARRED => star.  CATEGORY_*/SPAM/TRASH can NEVER
 # be listed here (they are rejected at load) — that is what blocks scope

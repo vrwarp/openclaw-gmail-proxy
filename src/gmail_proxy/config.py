@@ -21,6 +21,13 @@ from .categories import ALL_CATEGORY_ID_SET, CATEGORY_ID_BY_NAME, category_id_fo
 # (smuggling); SPAM/TRASH have dedicated, separately-gated paths.
 IMMUTABLE_LABELS: frozenset[str] = ALL_CATEGORY_ID_SET | frozenset({"SPAM", "TRASH"})
 
+# Labels too broad or system-owned to be used as an eligibility grant
+# (``allowed_labels``): granting one of these would widen access to most of the
+# mailbox or is otherwise meaningless as a hand-applied access label.
+RESERVED_LABEL_NAMES: frozenset[str] = IMMUTABLE_LABELS | frozenset(
+    {"INBOX", "UNREAD", "STARRED", "IMPORTANT", "SENT", "DRAFT", "CHAT"}
+)
+
 
 class RateLimits(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -61,9 +68,15 @@ class Policy(BaseModel):
     mode: Literal["read_only", "read_write"] = "read_write"
 
     # Which Gmail categories the agent may see/act on.  Default: all five.
+    # May be empty if allowed_labels is non-empty (label-only scoping).
     allowed_categories: list[str] = Field(
         default_factory=lambda: ["primary", "social", "promotions", "updates", "forums"]
     )
+
+    # User label NAMES that ALSO grant eligibility, in addition to categories: a
+    # message carrying one of these is visible/actionable regardless of category.
+    # These labels are automatically immutable to the agent (anti-smuggling).
+    allowed_labels: list[str] = Field(default_factory=list)
 
     # System labels the agent may toggle.  INBOX here means archive/unarchive is
     # allowed (removing INBOX == archive).  CATEGORY_*/SPAM/TRASH are rejected.
@@ -91,15 +104,26 @@ class Policy(BaseModel):
     @field_validator("allowed_categories")
     @classmethod
     def _known_categories(cls, v: list[str]) -> list[str]:
-        if not v:
-            raise ValueError("allowed_categories must not be empty")
         for name in v:
             if name.strip().lower() not in CATEGORY_ID_BY_NAME:
                 raise ValueError(f"unknown category: {name!r}")
         return [n.strip().lower() for n in v]
 
+    @field_validator("allowed_labels")
+    @classmethod
+    def _sane_allowed_labels(cls, v: list[str]) -> list[str]:
+        for name in v:
+            if name.strip().upper() in RESERVED_LABEL_NAMES:
+                raise ValueError(
+                    f"{name!r} may not be an allowed_label (reserved/too broad — "
+                    "use a user label, or allowed_categories for categories)"
+                )
+        return [n.strip() for n in v if n.strip()]
+
     @model_validator(mode="after")
-    def _mutable_not_immutable(self) -> "Policy":
+    def _scope_and_mutability(self) -> "Policy":
+        if not self.allowed_categories and not self.allowed_labels:
+            raise ValueError("at least one of allowed_categories or allowed_labels is required")
         for label in self.mutable_labels:
             if label in IMMUTABLE_LABELS:
                 raise ValueError(

@@ -27,26 +27,37 @@ def category_ids_of(label_ids: Iterable[str]) -> set[str]:
     return set(label_ids) & ALL_CATEGORY_ID_SET
 
 
-def is_eligible(label_ids: Iterable[str] | None, allowed_category_ids: Iterable[str]) -> bool:
-    """Return True iff a message with these labels is in an allowed category.
+def is_eligible(
+    label_ids: Iterable[str] | None,
+    allowed_category_ids: Iterable[str],
+    allowed_label_ids: Iterable[str] = (),
+) -> bool:
+    """Return True iff a message with these labels is in scope.
 
-    Default-deny: ``None``/empty labels, spam/trash, uncategorized messages, and
-    messages carrying any category outside ``allowed_category_ids`` all return
-    False.
+    In scope means: not spam/trash, AND either it carries an operator-allowed
+    label (``allowed_label_ids`` -- grants access regardless of category), OR it
+    has at least one category label and every category label is within
+    ``allowed_category_ids``.  Default-deny on ``None``/empty labels.
     """
     if not label_ids:
         return False
     labels = set(label_ids)
     if labels & HARD_DENY_LABELS:
         return False
+    allowed_labels = set(allowed_label_ids)
+    if allowed_labels and (labels & allowed_labels):
+        return True  # a hand-applied allowed label grants access, any category
     cats = labels & ALL_CATEGORY_ID_SET
     if not cats:
-        return False  # uncategorized -> deny
-    allowed = set(allowed_category_ids)
-    return cats <= allowed
+        return False  # uncategorized and no allowed label -> deny
+    return cats <= set(allowed_category_ids)
 
 
-def eligibility_reason(label_ids: Iterable[str] | None, allowed_category_ids: Iterable[str]) -> str:
+def eligibility_reason(
+    label_ids: Iterable[str] | None,
+    allowed_category_ids: Iterable[str],
+    allowed_label_ids: Iterable[str] = (),
+) -> str:
     """Explain the eligibility verdict (for the admin 'policy explain' view)."""
     if not label_ids:
         return "denied: message has no labels (malformed / metadata unavailable)"
@@ -54,14 +65,17 @@ def eligibility_reason(label_ids: Iterable[str] | None, allowed_category_ids: It
     blocked = labels & HARD_DENY_LABELS
     if blocked:
         return f"denied: message is in {', '.join(sorted(blocked))}"
+    matched = labels & set(allowed_label_ids)
+    if matched:
+        return f"allowed: carries allowed label(s) {', '.join(sorted(matched))}"
     cats = labels & ALL_CATEGORY_ID_SET
     if not cats:
-        return "denied: message is uncategorized (no CATEGORY_* label)"
+        return "denied: message is uncategorized and carries no allowed label"
     allowed = set(allowed_category_ids)
     outside = cats - allowed
     if outside:
         return (
             f"denied: message is in disallowed category "
-            f"{', '.join(sorted(outside))} (allowed: {', '.join(sorted(allowed))})"
+            f"{', '.join(sorted(outside))} (allowed: {', '.join(sorted(allowed)) or 'none'})"
         )
     return f"allowed: message categories {', '.join(sorted(cats))} are all within scope"

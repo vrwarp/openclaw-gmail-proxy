@@ -19,6 +19,15 @@
     <div class="hint">Enabling <strong>primary</strong> effectively grants near-full-mailbox read/modify (minus permanent delete).</div>
   </div>
 
+  <div class="field">
+    <label>Allowed labels <span class="hint">(in addition to categories)</span></label>
+    <input type="text" name="allowed_labels" value="{{ policy.allowed_labels | join(', ') }}"
+           placeholder="e.g. Newsletters, AI-Inbox">
+    <div class="hint">Comma-separated user-label names. A message carrying one of these is in scope
+      <em>regardless of category</em>, and these labels become immutable to the agent (anti-smuggling).
+      System/broad labels (INBOX, UNREAD, CATEGORY_*, …) are rejected.</div>
+  </div>
+
   <div class="row">
     <div class="field">
       <label>Mode</label>

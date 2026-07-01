@@ -5,9 +5,10 @@
 
 A **category-scoped Gmail proxy** for [OpenClaw](https://openclaw.ai/). It lets
 you give an autonomous OpenClaw agent access to **only** the Gmail categories
-you choose (Promotions, Social, Updates, Forums, and/or Primary) — and nothing
-else. The proxy holds your real Gmail OAuth token; OpenClaw only ever sees a
-narrow, audited, category-scoped tool surface over MCP.
+you choose (Promotions, Social, Updates, Forums, and/or Primary) — and,
+optionally, **any messages you tag with specific labels** — and nothing else.
+The proxy holds your real Gmail OAuth token; OpenClaw only ever sees a narrow,
+audited, scoped tool surface over MCP.
 
 > **Why a proxy?** Gmail's OAuth scopes are **account-wide** — there is *no*
 > scope that limits access to a category or label. So the only place category

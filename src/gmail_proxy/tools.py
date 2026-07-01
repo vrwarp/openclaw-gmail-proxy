@@ -25,6 +25,30 @@ def _allowed_ids(ctx: AppContext) -> set[str]:
     return ctx.policy.allowed_category_ids()
 
 
+def _allowed_label_ids(ctx: AppContext) -> frozenset[str]:
+    """Resolve the operator's allowed_labels (names) to Gmail label ids.
+
+    Fails closed: if labels can't be listed, no label grants eligibility.
+    """
+    names = ctx.policy.allowed_labels
+    if not names:
+        return frozenset()
+    try:
+        labels = ctx.backend.list_labels()  # cached (labels_ttl)
+    except GmailError:
+        return frozenset()
+    wanted = set(names)
+    return frozenset(lb.id for lb in labels if lb.name in wanted)
+
+
+def _eligible(ctx: AppContext, label_ids) -> bool:
+    return is_eligible(label_ids, _allowed_ids(ctx), _allowed_label_ids(ctx))
+
+
+def _elig_reason(ctx: AppContext, label_ids) -> str:
+    return eligibility_reason(label_ids, _allowed_ids(ctx), _allowed_label_ids(ctx))
+
+
 def _fetch_metadata(ctx: AppContext, message_id: str):
     try:
         return ctx.backend.get_message_metadata(message_id)
@@ -37,8 +61,8 @@ def _fetch_metadata(ctx: AppContext, message_id: str):
 
 def _require_eligible(ctx: AppContext, message_id: str):
     meta = _fetch_metadata(ctx, message_id)
-    if not is_eligible(meta.label_ids, _allowed_ids(ctx)):
-        raise errors.not_eligible(eligibility_reason(meta.label_ids, _allowed_ids(ctx)))
+    if not _eligible(ctx, meta.label_ids):
+        raise errors.not_eligible(_elig_reason(ctx, meta.label_ids))
     return meta
 
 
@@ -48,6 +72,7 @@ def _h_list(ctx, mode, args):
     q = build_query(
         _allowed_ids(ctx),
         category=args.get("category"),
+        allowed_label_names=ctx.policy.allowed_labels,
         unread_only=bool(args.get("unread_only", False)),
         from_=args.get("from"),
         subject=args.get("subject"),
@@ -66,7 +91,7 @@ def _h_list(ctx, mode, args):
     seen_ids = []
     for mid in ids:
         meta = _fetch_metadata(ctx, mid)
-        if not is_eligible(meta.label_ids, _allowed_ids(ctx)):
+        if not _eligible(ctx, meta.label_ids):
             continue  # defense in depth: query is scoped, but re-verify
         summaries.append(output.format_summary(meta, ctx.policy, ctx.sender_salt))
         seen_ids.append(mid)
@@ -86,7 +111,7 @@ def _h_get(ctx, mode, args):
         raise errors.upstream_error(str(e))
     # Authoritative labels are the fresh metadata read, NOT the cached full fetch.
     full.label_ids = meta.label_ids
-    if not is_eligible(full.label_ids, _allowed_ids(ctx)):
+    if not _eligible(ctx, full.label_ids):
         raise errors.not_eligible("reclassified between metadata and full fetch")
     return output.format_detail(full, ctx.policy, ctx.sender_salt), [mid]
 
@@ -99,7 +124,7 @@ def _h_thread(ctx, mode, args):
         raise errors.not_eligible(f"thread not found: {tid}")
     except GmailError as e:
         raise errors.upstream_error(str(e))
-    eligible = [m for m in thread.messages if is_eligible(m.label_ids, _allowed_ids(ctx))]
+    eligible = [m for m in thread.messages if _eligible(ctx, m.label_ids)]
     if not eligible:
         raise errors.not_eligible("no eligible messages in thread")
     msgs = [output.format_detail(m, ctx.policy, ctx.sender_salt) for m in eligible]
@@ -112,14 +137,16 @@ def _h_thread(ctx, mode, args):
 def _resolve_and_apply(ctx, add_labels, remove_labels, mid):
     """Shared modify path: validate, eligibility-gate, apply, re-verify, revert."""
     labels = ctx.backend.list_labels()
-    resolved = validate_mutation(add_labels, remove_labels, ctx.policy, labels)
+    resolved = validate_mutation(
+        add_labels, remove_labels, ctx.policy, labels, allowed_label_ids=_allowed_label_ids(ctx)
+    )
     _require_eligible(ctx, mid)  # before
     try:
         updated = ctx.backend.modify_labels(mid, resolved.add_ids, resolved.remove_ids)
     except GmailError as e:
         raise errors.upstream_error(str(e))
     # after: a mutation must never move a message out of scope.
-    if not is_eligible(updated.label_ids, _allowed_ids(ctx)):
+    if not _eligible(ctx, updated.label_ids):
         try:  # best-effort inverse revert
             ctx.backend.modify_labels(mid, resolved.remove_ids, resolved.add_ids)
         except GmailError:
@@ -170,21 +197,28 @@ def _h_labels(ctx, mode, args):
     }, []
 
 
+def _count_unread(ctx, q) -> object:
+    try:
+        ids, _ = ctx.backend.list_message_ids(q, 100, None)
+    except GmailError as e:
+        raise errors.upstream_error(str(e))
+    # Re-check eligibility per message (mirrors _h_list).
+    n = sum(1 for mid in ids if _eligible(ctx, _fetch_metadata(ctx, mid).label_ids))
+    return n if n < 100 else "100+"
+
+
 def _h_counts(ctx, mode, args):
     category = args.get("category")
     cats = [category] if category else [NAME_BY_CATEGORY_ID[c] for c in _allowed_ids(ctx)]
-    out = {}
-    for name in cats:
-        q = build_query(_allowed_ids(ctx), category=name, unread_only=True)
-        try:
-            ids, _ = ctx.backend.list_message_ids(q, 100, None)
-        except GmailError as e:
-            raise errors.upstream_error(str(e))
-        # Re-check eligibility per message (mirrors _h_list): a multi-category
-        # message can match a scoped query yet be ineligible (cats not a subset).
-        n = sum(1 for mid in ids if is_eligible(_fetch_metadata(ctx, mid).label_ids, _allowed_ids(ctx)))
-        out[name] = n if n < 100 else "100+"
-    return {"unread_by_category": out}, []
+    out = {name: _count_unread(ctx, build_query(_allowed_ids(ctx), category=name, unread_only=True))
+           for name in cats}
+    result = {"unread_by_category": out}
+    if ctx.policy.allowed_labels and not category:
+        result["unread_by_label"] = {
+            lbl: _count_unread(ctx, build_query(set(), allowed_label_names=[lbl], unread_only=True))
+            for lbl in ctx.policy.allowed_labels
+        }
+    return result, []
 
 
 def _h_profile(ctx, mode, args):

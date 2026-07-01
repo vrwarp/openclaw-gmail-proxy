@@ -206,7 +206,8 @@ def build_admin_app(ctx: AppContext) -> FastAPI:
         data = {
             "version": ctx.policy.version,
             "mode": form.get("mode", "read_write"),
-            "allowed_categories": cats or ["promotions"],
+            "allowed_categories": cats,
+            "allowed_labels": [s.strip() for s in form.get("allowed_labels", "").split(",") if s.strip()],
             "mutable_labels": [s.strip() for s in form.get("mutable_labels", "").split(",") if s.strip()],
             "allow_user_label_mutations": form.get("allow_user_label_mutations") == "on",
             "allow_trash": form.get("allow_trash") == "on",
@@ -259,9 +260,10 @@ def build_admin_app(ctx: AppContext) -> FastAPI:
             try:
                 meta = ctx.backend.get_message_metadata(id)
                 allowed = ctx.policy.allowed_category_ids()
+                allowed_lbls = tools._allowed_label_ids(ctx)
                 result = {"id": id, "labels": meta.label_ids,
-                          "eligible": is_eligible(meta.label_ids, allowed),
-                          "reason": eligibility_reason(meta.label_ids, allowed),
+                          "eligible": is_eligible(meta.label_ids, allowed, allowed_lbls),
+                          "reason": eligibility_reason(meta.label_ids, allowed, allowed_lbls),
                           "subject": meta.header("Subject")}
             except KeyError:
                 result = {"id": id, "error": "message id not found"}
