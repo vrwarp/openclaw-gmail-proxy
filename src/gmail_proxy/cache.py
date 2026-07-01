@@ -16,6 +16,7 @@ invalidate the affected entries + the list cache.
 
 from __future__ import annotations
 
+import contextvars
 import dataclasses
 import threading
 import time
@@ -24,6 +25,43 @@ from collections import OrderedDict
 from .config import CacheConfig
 from .gmail.client import GmailBackend
 from .models import Message, Thread
+
+# Per-request state. `_taint` accumulates whether ANY cache was used during the
+# current request (so the whole response can be marked potentially-stale);
+# `_bypass` forces a fresh fetch (and refreshes the cache).
+_taint: contextvars.ContextVar[dict | None] = contextvars.ContextVar("cache_taint", default=None)
+_bypass: contextvars.ContextVar[bool] = contextvars.ContextVar("cache_bypass", default=False)
+
+
+def _mark_cached() -> None:
+    t = _taint.get()
+    if t is not None:
+        t["cached"] = True
+
+
+class request_scope:
+    """Track cache taint (+ optional forced-fresh) for one tool request.
+
+    Usage::
+
+        with request_scope(fresh) as taint:
+            ... run handler ...
+        response["_control"]["cached"] = taint["cached"]
+    """
+
+    def __init__(self, fresh: bool = False) -> None:
+        self.fresh = fresh
+        self.taint = {"cached": False}
+
+    def __enter__(self) -> dict:
+        self._t = _taint.set(self.taint)
+        self._b = _bypass.set(self.fresh)
+        return self.taint
+
+    def __exit__(self, *exc) -> bool:
+        _taint.reset(self._t)
+        _bypass.reset(self._b)
+        return False
 
 
 def _copy_message(m: Message) -> Message:
@@ -63,6 +101,8 @@ class CachingGmailBackend(GmailBackend):
     def _content_get(self, mid: str) -> Message | None:
         if not self.cfg.content.enabled or self.cfg.content.max_messages == 0:
             return None
+        if _bypass.get():  # forced fresh: skip cache (and don't skew stats)
+            return None
         with self._lock:
             m = self._content.get(mid)
             if m is None:
@@ -70,6 +110,7 @@ class CachingGmailBackend(GmailBackend):
                 return None
             self._content.move_to_end(mid)
             self._stats["content"].hits += 1
+            _mark_cached()
             return _copy_message(m)
 
     def _content_put(self, m: Message) -> None:
@@ -93,10 +134,13 @@ class CachingGmailBackend(GmailBackend):
         if ttl <= 0:
             self._stats[bucket].misses += 1
             return self._MISS
+        if _bypass.get():  # forced fresh
+            return self._MISS
         with self._lock:
             entry = self._ttl[bucket].get(key)
             if entry is not None and entry[0] > time.monotonic():
                 self._stats[bucket].hits += 1
+                _mark_cached()
                 return entry[1]
             if entry is not None:
                 self._ttl[bucket].pop(key, None)

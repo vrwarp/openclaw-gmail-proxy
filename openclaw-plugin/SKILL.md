@@ -45,6 +45,20 @@ auditable by the operator.
 - `gmail_counts(category?)` — cheap unread counts.
 - `gmail_get_profile()` — the scoped account + which categories you have.
 
+## Freshness & caching
+
+Read results may be served from a cache to save API calls. Every response
+carries `_control.cached`:
+
+- `"_control": {"cached": false}` — the whole result was fetched live.
+- `"_control": {"cached": true}` — at least one part came from cache and may be
+  slightly stale.
+
+If you need a guaranteed up-to-the-moment result (e.g. right after a change, or
+before an important decision), call the read tool again with `fresh=true` to
+bypass the cache. Mutations (`gmail_modify_labels`, `gmail_archive_message`,
+`gmail_trash_message`) always act on live state and invalidate stale entries.
+
 ## Error taxonomy
 
 Errors come back as `{"error": {"code": N, "reason": "..."}}`. Common reasons:

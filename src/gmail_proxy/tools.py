@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from . import errors, output
+from . import cache, errors, output
 from .categories import NAME_BY_CATEGORY_ID
 from .context import AppContext
 from .gmail.client import GmailError
@@ -231,17 +231,23 @@ def call_tool(
     if enforce_runtime and not ctx.ratelimiter.check(actor):
         ctx.audit.record(actor=actor, tool=name, decision="deny", reason="rate_limited", args=args)
         raise errors.ProxyError(429, "rate_limited", "per-credential rate limit exceeded")
-    try:
-        result, message_ids = TOOLS[name](ctx, mode, args)
-    except errors.ProxyError as e:
-        ctx.audit.record(
-            actor=actor, tool=name, decision="deny", reason=e.reason, args=args, detail=e.detail
-        )
-        raise
-    except Exception as e:  # noqa: BLE001 - fail closed; never leak raw detail to the agent
-        ctx.audit.record(
-            actor=actor, tool=name, decision="deny", reason="internal_error", args=args, detail=repr(e)
-        )
-        raise errors.ProxyError(500, "internal_error", repr(e))
+    fresh = bool(args.get("fresh", False))
+    with cache.request_scope(fresh) as taint:
+        try:
+            result, message_ids = TOOLS[name](ctx, mode, args)
+        except errors.ProxyError as e:
+            ctx.audit.record(
+                actor=actor, tool=name, decision="deny", reason=e.reason, args=args, detail=e.detail
+            )
+            raise
+        except Exception as e:  # noqa: BLE001 - fail closed; never leak raw detail to the agent
+            ctx.audit.record(
+                actor=actor, tool=name, decision="deny", reason="internal_error", args=args, detail=repr(e)
+            )
+            raise errors.ProxyError(500, "internal_error", repr(e))
+    # Taint the whole response if ANY part was served from cache, so the agent
+    # knows a potentially-stale result was used (and can retry with fresh=true).
+    if isinstance(result, dict):
+        result.setdefault("_control", {})["cached"] = taint["cached"]
     ctx.audit.record(actor=actor, tool=name, decision="allow", args=args, message_ids=message_ids)
     return result

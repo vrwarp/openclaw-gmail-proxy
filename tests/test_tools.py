@@ -130,6 +130,34 @@ def test_counts_and_profile(ctx):
     assert prof["email"] == "vrwarp@gmail.com"
 
 
+def test_response_taint_marks_cached(make_ctx):
+    ctx = make_ctx()  # content cache on, metadata_ttl 0
+    r1 = call(ctx, "gmail_get_message", id="m001")
+    assert r1["_control"]["cached"] is False  # first fetch is live
+    r2 = call(ctx, "gmail_get_message", id="m001")
+    assert r2["_control"]["cached"] is True  # body served from the content cache
+
+
+def test_fresh_forces_live_and_untaints(make_ctx):
+    ctx = make_ctx()
+    call(ctx, "gmail_get_message", id="m001")  # warm
+    hits_before = ctx.backend.stats()["content"]["hits"]
+    r = call(ctx, "gmail_get_message", id="m001", fresh=True)
+    assert r["_control"]["cached"] is False  # forced live
+    assert ctx.backend.stats()["content"]["hits"] == hits_before  # no cache hit consumed
+
+
+def test_list_taint_with_ttl(make_ctx):
+    from gmail_proxy.config import CacheConfig
+    ctx = make_ctx(cache=CacheConfig(list_ttl_s=60))
+    r1 = call(ctx, "gmail_list_messages", category="promotions")
+    assert r1["_control"]["cached"] is False
+    r2 = call(ctx, "gmail_list_messages", category="promotions")
+    assert r2["_control"]["cached"] is True  # list served from cache -> whole response tainted
+    r3 = call(ctx, "gmail_list_messages", category="promotions", fresh=True)
+    assert r3["_control"]["cached"] is False  # fresh bypasses
+
+
 def test_counts_excludes_multi_category_message(ctx):
     # A message in an allowed AND a disallowed category is ineligible (not a
     # subset) and must NOT be counted -- must match what gmail_list would show.

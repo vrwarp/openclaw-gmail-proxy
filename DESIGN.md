@@ -34,7 +34,10 @@ that runs in Docker outside the VM and:
   durable LRU **content cache** (immutable bodies, default 1000 msgs) plus short
   TTL caches for labels/list/profile. The eligibility-labels TTL defaults to 0
   (always fresh) so caching never widens the confinement decision; entries are
-  invalidated on mutation. Stats surface on the admin Cache page.
+  invalidated on mutation. Stats surface on the admin Cache page. For the
+  freshness-vs-staleness concern, every response carries a `_control.cached`
+  **taint** (set if any part was served from cache), and read tools accept
+  `fresh=true` to bypass the cache and force a live fetch.
 - Comes with a mock Gmail backend so the full test suite (100+ tests) and the
   admin UI run without live credentials.
 

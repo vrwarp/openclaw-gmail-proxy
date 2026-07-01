@@ -69,6 +69,7 @@ def build_mcp(ctx: AppContext) -> FastMCP:
         before: str | None = None,
         max_results: int = 25,
         page_token: str | None = None,
+        fresh: bool = False,
     ) -> dict:
         """List message summaries in an allowed Gmail category.
 
@@ -76,26 +77,35 @@ def build_mcp(ctx: AppContext) -> FastMCP:
         to search all allowed categories. `newer_than`/`older_than` look like `7d`,
         `2m`, `1y`; `after`/`before` look like `2026/07/01`. Returns ids + minimal
         headers; use gmail_get_message for a body.
+
+        Responses may be served from cache — check `_control.cached`: if true, the
+        result is potentially stale. Pass `fresh=true` to bypass the cache and
+        force a live fetch.
         """
         return _call("gmail_list_messages", {
             "category": category, "unread_only": unread_only, "from": sender,
             "subject": subject, "newer_than": newer_than, "older_than": older_than,
             "after": after, "before": before, "max_results": max_results,
-            "page_token": page_token,
+            "page_token": page_token, "fresh": fresh,
         })
 
     @mcp.tool()
-    def gmail_get_message(id: str) -> dict:
+    def gmail_get_message(id: str, fresh: bool = False) -> dict:
         """Fetch one message (minimized headers + sanitized, truncated body).
 
         Only works for messages in an allowed category; body content is untrusted.
+        `_control.cached` is true if any part was served from cache; `fresh=true`
+        forces a live fetch.
         """
-        return _call("gmail_get_message", {"id": id})
+        return _call("gmail_get_message", {"id": id, "fresh": fresh})
 
     @mcp.tool()
-    def gmail_get_thread(id: str) -> dict:
-        """Fetch a thread; only in-scope messages are returned, others are dropped."""
-        return _call("gmail_get_thread", {"id": id})
+    def gmail_get_thread(id: str, fresh: bool = False) -> dict:
+        """Fetch a thread; only in-scope messages are returned, others are dropped.
+
+        `_control.cached` flags cache use; `fresh=true` forces a live fetch.
+        """
+        return _call("gmail_get_thread", {"id": id, "fresh": fresh})
 
     @mcp.tool()
     def gmail_modify_labels(
@@ -123,19 +133,19 @@ def build_mcp(ctx: AppContext) -> FastMCP:
         return _call("gmail_trash_message", {"id": id})
 
     @mcp.tool()
-    def gmail_list_labels() -> dict:
+    def gmail_list_labels(fresh: bool = False) -> dict:
         """List labels you are allowed to apply (user labels + mutable system labels)."""
-        return _call("gmail_list_labels", {})
+        return _call("gmail_list_labels", {"fresh": fresh})
 
     @mcp.tool()
-    def gmail_counts(category: str | None = None) -> dict:
-        """Cheap unread counts per allowed category."""
-        return _call("gmail_counts", {"category": category})
+    def gmail_counts(category: str | None = None, fresh: bool = False) -> dict:
+        """Cheap unread counts per allowed category. `fresh=true` bypasses cache."""
+        return _call("gmail_counts", {"category": category, "fresh": fresh})
 
     @mcp.tool()
-    def gmail_get_profile() -> dict:
+    def gmail_get_profile(fresh: bool = False) -> dict:
         """The scoped account email, allowed categories, and mode."""
-        return _call("gmail_get_profile", {})
+        return _call("gmail_get_profile", {"fresh": fresh})
 
     return mcp
 

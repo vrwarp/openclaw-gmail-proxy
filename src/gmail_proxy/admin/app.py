@@ -26,15 +26,15 @@ _ALL_CATEGORY_NAMES = ["primary", "social", "promotions", "updates", "forums"]
 _PLAYGROUND = {
     "gmail_list_messages": [("category", "text"), ("unread_only", "bool"),
                             ("from", "text"), ("subject", "text"), ("newer_than", "text"),
-                            ("max_results", "int")],
-    "gmail_get_message": [("id", "text")],
-    "gmail_get_thread": [("id", "text")],
+                            ("max_results", "int"), ("fresh", "bool")],
+    "gmail_get_message": [("id", "text"), ("fresh", "bool")],
+    "gmail_get_thread": [("id", "text"), ("fresh", "bool")],
     "gmail_modify_labels": [("id", "text"), ("add_labels", "csv"), ("remove_labels", "csv")],
     "gmail_archive_message": [("id", "text")],
     "gmail_trash_message": [("id", "text")],
-    "gmail_list_labels": [],
-    "gmail_counts": [("category", "text")],
-    "gmail_get_profile": [],
+    "gmail_list_labels": [("fresh", "bool")],
+    "gmail_counts": [("category", "text"), ("fresh", "bool")],
+    "gmail_get_profile": [("fresh", "bool")],
 }
 
 
