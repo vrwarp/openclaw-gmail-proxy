@@ -7,15 +7,10 @@ resolved identity for the tool handlers via a context variable.
 
 from __future__ import annotations
 
-import contextvars
-
 from mcp.server.fastmcp import FastMCP
 
 from . import errors, tools
 from .context import AppContext
-
-# Set by the auth middleware per request; read by tool handlers.
-_actor: contextvars.ContextVar[dict | None] = contextvars.ContextVar("actor", default=None)
 
 _INSTRUCTIONS = (
     "Category-scoped Gmail access. You may ONLY see and act on messages in the "
@@ -26,16 +21,41 @@ _INSTRUCTIONS = (
 
 
 def build_mcp(ctx: AppContext) -> FastMCP:
-    mcp = FastMCP("openclaw-gmail-proxy", instructions=_INSTRUCTIONS)
+    # stateless_http: no persistent per-session state, so there is no cross-request
+    # session task to capture a stale identity into.
+    mcp = FastMCP("openclaw-gmail-proxy", instructions=_INSTRUCTIONS, stateless_http=True)
+
+    def _resolve_actor() -> dict | None:
+        """Resolve the credential from THIS request's Authorization header.
+
+        Uses the FastMCP per-request context, not a cross-task ContextVar, so the
+        identity/mode always reflect the actual caller (no session-owner carry-over).
+        """
+        try:
+            request = mcp.get_context().request_context.request
+        except Exception:  # noqa: BLE001
+            request = None
+        token = None
+        if request is not None:
+            auth = request.headers.get("authorization", "")
+            if auth[:7].lower() == "bearer ":
+                token = auth[7:].strip()
+        cred = ctx.credentials.verify(token)
+        if cred is None:
+            return None
+        mode = "read_only" if (ctx.policy.mode == "read_only" or cred.mode == "read_only") else "read_write"
+        return {"id": cred.id, "mode": mode}
 
     def _call(name: str, args: dict) -> dict:
-        actor = _actor.get()
+        actor = _resolve_actor()
         if actor is None:
             return {"error": {"code": 401, "reason": "unauthorized"}}
         try:
             return tools.call_tool(ctx, actor["id"], actor["mode"], name, args)
         except errors.ProxyError as e:
             return {"error": e.to_public()}
+        except Exception:  # noqa: BLE001 - fail closed, content-free
+            return {"error": {"code": 500, "reason": "internal_error"}}
 
     @mcp.tool()
     def gmail_list_messages(
@@ -121,7 +141,11 @@ def build_mcp(ctx: AppContext) -> FastMCP:
 
 
 class BearerAuthMiddleware:
-    """ASGI middleware: authenticate the per-agent bearer token, set the actor."""
+    """ASGI middleware: reject unauthenticated requests early (401).
+
+    Authoritative per-request identity resolution happens inside the tool call
+    (`_resolve_actor`); this layer is an early gate + defense in depth.
+    """
 
     def __init__(self, app, ctx: AppContext) -> None:
         self.app = app
@@ -133,20 +157,14 @@ class BearerAuthMiddleware:
         headers = {k.decode().lower(): v.decode() for k, v in scope.get("headers", [])}
         auth = headers.get("authorization", "")
         token = auth[7:].strip() if auth[:7].lower() == "bearer " else None
-        cred = self.ctx.credentials.verify(token)
-        if cred is None:
+        if self.ctx.credentials.verify(token) is None:
             body = b'{"error":{"code":401,"reason":"unauthorized"}}'
             await send({"type": "http.response.start", "status": 401,
                         "headers": [(b"content-type", b"application/json"),
                                     (b"content-length", str(len(body)).encode())]})
             await send({"type": "http.response.body", "body": body})
             return
-        mode = "read_only" if (self.ctx.policy.mode == "read_only" or cred.mode == "read_only") else "read_write"
-        tok = _actor.set({"id": cred.id, "mode": mode})
-        try:
-            await self.app(scope, receive, send)
-        finally:
-            _actor.reset(tok)
+        await self.app(scope, receive, send)
 
 
 def build_mcp_app(ctx: AppContext):

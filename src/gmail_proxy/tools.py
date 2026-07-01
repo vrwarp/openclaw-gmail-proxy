@@ -178,7 +178,9 @@ def _h_counts(ctx, mode, args):
             ids, _ = ctx.backend.list_message_ids(q, 100, None)
         except GmailError as e:
             raise errors.upstream_error(str(e))
-        n = len(ids)
+        # Re-check eligibility per message (mirrors _h_list): a multi-category
+        # message can match a scoped query yet be ineligible (cats not a subset).
+        n = sum(1 for mid in ids if is_eligible(_fetch_metadata(ctx, mid).label_ids, _allowed_ids(ctx)))
         out[name] = n if n < 100 else "100+"
     return {"unread_by_category": out}, []
 
@@ -234,5 +236,10 @@ def call_tool(
             actor=actor, tool=name, decision="deny", reason=e.reason, args=args, detail=e.detail
         )
         raise
+    except Exception as e:  # noqa: BLE001 - fail closed; never leak raw detail to the agent
+        ctx.audit.record(
+            actor=actor, tool=name, decision="deny", reason="internal_error", args=args, detail=repr(e)
+        )
+        raise errors.ProxyError(500, "internal_error", repr(e))
     ctx.audit.record(actor=actor, tool=name, decision="allow", args=args, message_ids=message_ids)
     return result

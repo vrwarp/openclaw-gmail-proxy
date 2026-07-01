@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import re
 
 import bleach
 
@@ -36,7 +37,9 @@ def untrusted(content: str, provenance: str) -> dict:
 
 
 def _html_to_text(html: str) -> str:
-    # Strip all tags/attributes; bleach neutralizes scripts/styles/links.
+    # Drop raw-text elements entirely FIRST: bleach with strip=True removes the
+    # <script>/<style> tags but KEEPS their text content, which must not surface.
+    html = re.sub(r"(?is)<(script|style|template|noscript|head)\b[^>]*>.*?</\1>", " ", html)
     text = bleach.clean(html, tags=[], attributes={}, strip=True)
     return " ".join(text.split())
 

@@ -130,6 +130,34 @@ def test_counts_and_profile(ctx):
     assert prof["email"] == "vrwarp@gmail.com"
 
 
+def test_counts_excludes_multi_category_message(ctx):
+    # A message in an allowed AND a disallowed category is ineligible (not a
+    # subset) and must NOT be counted -- must match what gmail_list would show.
+    from gmail_proxy.models import Message
+    ctx.backend.messages["mX"] = Message(
+        id="mX", thread_id="tX",
+        label_ids=["CATEGORY_PROMOTIONS", "CATEGORY_UPDATES", "UNREAD", "INBOX"],
+        headers={"From": "x@y.com", "Subject": "multi", "Date": "2026-06-30T00:00:00+00:00"},
+        internal_date="2026-06-30T00:00:00+00:00", history_id=1,
+    )
+    listed = call(ctx, "gmail_list_messages", category="promotions", unread_only=True)
+    counted = call(ctx, "gmail_counts", category="promotions")["unread_by_category"]["promotions"]
+    assert "mX" not in [m["id"] for m in listed["messages"]]  # list already excludes it
+    assert counted == listed["_control"]["count"]             # counts must agree
+
+
+def test_internal_error_is_fail_closed(ctx, monkeypatch):
+    def boom(ctx, mode, args):
+        raise RuntimeError("secret upstream detail")
+    monkeypatch.setitem(tools.TOOLS, "gmail_counts", boom)
+    with pytest.raises(errors.ProxyError) as ei:
+        call(ctx, "gmail_counts")
+    assert ei.value.code == 500 and ei.value.reason == "internal_error"
+    assert "secret" not in str(ei.value.to_public())  # no raw detail to the agent
+    row = ctx.audit.tail(1)[0]
+    assert row["decision"] == "deny" and row["reason"] == "internal_error"
+
+
 def test_audit_records_allow_and_deny(ctx):
     call(ctx, "gmail_counts")
     with pytest.raises(errors.ProxyError):

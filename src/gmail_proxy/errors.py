@@ -23,6 +23,7 @@ REASONS: frozenset[str] = frozenset(
         "rate_limited",          # per-credential rate limit exceeded
         "frozen",                # kill-switch engaged
         "upstream_error",        # Gmail call failed; fail closed
+        "internal_error",        # unexpected exception; fail closed, content-free
         "invalid_arguments",     # schema/validation failure
         "not_found",             # id not found (uniform, no oracle)
         "reclassified",          # message left scope between read and write

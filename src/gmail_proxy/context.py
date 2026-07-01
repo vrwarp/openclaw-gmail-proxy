@@ -50,6 +50,14 @@ def _make_backend(settings: Settings) -> GmailBackend:
         from .gmail.google_client import GoogleGmail
         from .gmail.token_store import TokenStore
 
+        if not settings.token_encryption_key:
+            import warnings
+
+            warnings.warn(
+                "TOKEN_ENCRYPTION_KEY is unset: the Gmail refresh token will be stored "
+                "in PLAINTEXT. Set it (see .env.example) before any real deployment.",
+                stacklevel=2,
+            )
         secret = ""
         if settings.google_client_secret_file:
             secret = Path(settings.google_client_secret_file).read_text().strip()
