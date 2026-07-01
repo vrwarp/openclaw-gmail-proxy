@@ -31,12 +31,14 @@ def is_eligible(
     label_ids: Iterable[str] | None,
     allowed_category_ids: Iterable[str],
     allowed_label_ids: Iterable[str] = (),
+    blocked_label_ids: Iterable[str] = (),
 ) -> bool:
     """Return True iff a message with these labels is in scope.
 
-    In scope means: not spam/trash, AND either it carries an operator-allowed
-    label (``allowed_label_ids`` -- grants access regardless of category), OR it
-    has at least one category label and every category label is within
+    In scope means: not spam/trash, NOT carrying a blocked label (which
+    supersedes both allowlists), AND either it carries an operator-allowed label
+    (``allowed_label_ids`` -- grants access regardless of category), OR it has at
+    least one category label and every category label is within
     ``allowed_category_ids``.  Default-deny on ``None``/empty labels.
     """
     if not label_ids:
@@ -44,6 +46,8 @@ def is_eligible(
     labels = set(label_ids)
     if labels & HARD_DENY_LABELS:
         return False
+    if labels & set(blocked_label_ids):
+        return False  # blocklist supersedes every allowlist
     allowed_labels = set(allowed_label_ids)
     if allowed_labels and (labels & allowed_labels):
         return True  # a hand-applied allowed label grants access, any category
@@ -57,6 +61,7 @@ def eligibility_reason(
     label_ids: Iterable[str] | None,
     allowed_category_ids: Iterable[str],
     allowed_label_ids: Iterable[str] = (),
+    blocked_label_ids: Iterable[str] = (),
 ) -> str:
     """Explain the eligibility verdict (for the admin 'policy explain' view)."""
     if not label_ids:
@@ -65,6 +70,9 @@ def eligibility_reason(
     blocked = labels & HARD_DENY_LABELS
     if blocked:
         return f"denied: message is in {', '.join(sorted(blocked))}"
+    blocked_hit = labels & set(blocked_label_ids)
+    if blocked_hit:
+        return f"denied: carries blocked label(s) {', '.join(sorted(blocked_hit))} (supersedes allowlist)"
     matched = labels & set(allowed_label_ids)
     if matched:
         return f"allowed: carries allowed label(s) {', '.join(sorted(matched))}"

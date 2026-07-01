@@ -25,28 +25,50 @@ def _allowed_ids(ctx: AppContext) -> set[str]:
     return ctx.policy.allowed_category_ids()
 
 
-def _allowed_label_ids(ctx: AppContext) -> frozenset[str]:
-    """Resolve the operator's allowed_labels (names) to Gmail label ids.
+def _resolve_label_ids(ctx: AppContext, names) -> frozenset[str]:
+    """Resolve label NAMES to Gmail label ids via the (cached) labels.list.
 
-    Fails closed: if labels can't be listed, no label grants eligibility.
+    Fails closed for the ALLOW path (no grant if labels can't be listed); the
+    BLOCK path also fails safe because an unresolved block name just doesn't
+    match — but see _blocked_label_ids for its fail-closed handling.
     """
-    names = ctx.policy.allowed_labels
     if not names:
         return frozenset()
-    try:
-        labels = ctx.backend.list_labels()  # cached (labels_ttl)
-    except GmailError:
-        return frozenset()
+    labels = ctx.backend.list_labels()  # cached (labels_ttl); may raise GmailError
     wanted = set(names)
     return frozenset(lb.id for lb in labels if lb.name in wanted)
 
 
+def _allowed_label_ids(ctx: AppContext) -> frozenset[str]:
+    try:
+        return _resolve_label_ids(ctx, ctx.policy.allowed_labels)
+    except GmailError:
+        return frozenset()  # no label grants if labels unavailable
+
+
+def _blocked_label_ids(ctx: AppContext) -> frozenset[str]:
+    if not ctx.policy.blocked_labels:
+        return frozenset()
+    try:
+        return _resolve_label_ids(ctx, ctx.policy.blocked_labels)
+    except GmailError:
+        # Fail closed: if we can't resolve the blocklist we cannot prove a message
+        # is unblocked, so deny everything by blocking via a sentinel.
+        raise errors.upstream_error("blocklist unresolvable; failing closed")
+
+
+def _immutable_label_ids(ctx: AppContext) -> frozenset[str]:
+    return _allowed_label_ids(ctx) | _blocked_label_ids(ctx)
+
+
 def _eligible(ctx: AppContext, label_ids) -> bool:
-    return is_eligible(label_ids, _allowed_ids(ctx), _allowed_label_ids(ctx))
+    return is_eligible(label_ids, _allowed_ids(ctx), _allowed_label_ids(ctx), _blocked_label_ids(ctx))
 
 
 def _elig_reason(ctx: AppContext, label_ids) -> str:
-    return eligibility_reason(label_ids, _allowed_ids(ctx), _allowed_label_ids(ctx))
+    return eligibility_reason(
+        label_ids, _allowed_ids(ctx), _allowed_label_ids(ctx), _blocked_label_ids(ctx)
+    )
 
 
 def _fetch_metadata(ctx: AppContext, message_id: str):
@@ -73,6 +95,7 @@ def _h_list(ctx, mode, args):
         _allowed_ids(ctx),
         category=args.get("category"),
         allowed_label_names=ctx.policy.allowed_labels,
+        blocked_label_names=ctx.policy.blocked_labels,
         unread_only=bool(args.get("unread_only", False)),
         from_=args.get("from"),
         subject=args.get("subject"),
@@ -138,7 +161,8 @@ def _resolve_and_apply(ctx, add_labels, remove_labels, mid):
     """Shared modify path: validate, eligibility-gate, apply, re-verify, revert."""
     labels = ctx.backend.list_labels()
     resolved = validate_mutation(
-        add_labels, remove_labels, ctx.policy, labels, allowed_label_ids=_allowed_label_ids(ctx)
+        add_labels, remove_labels, ctx.policy, labels,
+        eligibility_label_ids=_immutable_label_ids(ctx),
     )
     _require_eligible(ctx, mid)  # before
     try:
@@ -209,13 +233,16 @@ def _count_unread(ctx, q) -> object:
 
 def _h_counts(ctx, mode, args):
     category = args.get("category")
+    blk = ctx.policy.blocked_labels
     cats = [category] if category else [NAME_BY_CATEGORY_ID[c] for c in _allowed_ids(ctx)]
-    out = {name: _count_unread(ctx, build_query(_allowed_ids(ctx), category=name, unread_only=True))
+    out = {name: _count_unread(ctx, build_query(_allowed_ids(ctx), category=name,
+                                                blocked_label_names=blk, unread_only=True))
            for name in cats}
     result = {"unread_by_category": out}
     if ctx.policy.allowed_labels and not category:
         result["unread_by_label"] = {
-            lbl: _count_unread(ctx, build_query(set(), allowed_label_names=[lbl], unread_only=True))
+            lbl: _count_unread(ctx, build_query(set(), allowed_label_names=[lbl],
+                                                blocked_label_names=blk, unread_only=True))
             for lbl in ctx.policy.allowed_labels
         }
     return result, []

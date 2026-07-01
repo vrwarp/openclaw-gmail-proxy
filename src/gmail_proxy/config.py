@@ -78,6 +78,11 @@ class Policy(BaseModel):
     # These labels are automatically immutable to the agent (anti-smuggling).
     allowed_labels: list[str] = Field(default_factory=list)
 
+    # Label NAMES that DENY eligibility and SUPERSEDE the allowlists: a message
+    # carrying any of these is out of scope even if a category/label would allow
+    # it.  May be user or system labels.  Also immutable to the agent.
+    blocked_labels: list[str] = Field(default_factory=list)
+
     # System labels the agent may toggle.  INBOX here means archive/unarchive is
     # allowed (removing INBOX == archive).  CATEGORY_*/SPAM/TRASH are rejected.
     mutable_labels: list[str] = Field(default_factory=lambda: ["UNREAD", "STARRED", "INBOX"])
@@ -120,10 +125,18 @@ class Policy(BaseModel):
                 )
         return [n.strip() for n in v if n.strip()]
 
+    @field_validator("blocked_labels")
+    @classmethod
+    def _clean_blocked_labels(cls, v: list[str]) -> list[str]:
+        return [n.strip() for n in v if n.strip()]
+
     @model_validator(mode="after")
     def _scope_and_mutability(self) -> "Policy":
         if not self.allowed_categories and not self.allowed_labels:
             raise ValueError("at least one of allowed_categories or allowed_labels is required")
+        overlap = set(self.allowed_labels) & set(self.blocked_labels)
+        if overlap:
+            raise ValueError(f"label(s) in both allowed_labels and blocked_labels: {sorted(overlap)}")
         for label in self.mutable_labels:
             if label in IMMUTABLE_LABELS:
                 raise ValueError(

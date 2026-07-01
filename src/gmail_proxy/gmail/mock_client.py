@@ -61,11 +61,15 @@ class MockGmail(GmailBackend):
         if "SPAM" in m.label_ids or "TRASH" in m.label_ids:
             return False
         cats = set(re.findall(r"category:(\w+)", q))
-        labels = set(re.findall(r"label:([\w\-/.]+)", q))
-        if cats or labels:
+        pos_labels = set(re.findall(r"(?<!-)label:([\w\-/.]+)", q))
+        neg_labels = set(re.findall(r"-label:([\w\-/.]+)", q))
+        msg_label_tokens = self._msg_label_tokens(m)
+        if neg_labels and (msg_label_tokens & neg_labels):
+            return False  # blocklist exclusion
+        if cats or pos_labels:
             cat_tok = self._msg_category_token(m)
             in_scope = (cat_tok is not None and cat_tok in cats) or bool(
-                self._msg_label_tokens(m) & labels
+                msg_label_tokens & pos_labels
             )
             if not in_scope:
                 return False

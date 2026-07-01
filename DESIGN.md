@@ -49,6 +49,7 @@ Code map is in [`README.md`](README.md); screenshots in `docs/screenshots/`.
 |---|---|---|
 | Categories | Promotions + Social only | **All five** (primary/social/promotions/updates/forums), each toggleable, default all-on; enabling Primary is flagged as ~full-mailbox |
 | Label allowlist | not in rev-14 | **Added** (`allowed_labels`): user labels that grant access in addition to (or instead of) categories; those labels are made immutable to the agent to prevent scope-smuggling |
+| Label blocklist | not in rev-14 | **Added** (`blocked_labels`): labels that DENY access and supersede both allowlists (checked first in `is_eligible`); also immutable to the agent; excluded from listings via `-label:` |
 | Eligibility | *Exclusive* (INBOX ⇒ ineligible) | **Category-subset**: eligible iff all `CATEGORY_*` labels ⊆ allowed set. *(The exclusive rule was a bug — it would hide nearly all inbox mail.)* |
 | Archive | `INBOX` immutable | `INBOX` is a **mutable** label ⇒ archive works *(the user explicitly wanted archive; the rev-14 rule broke it)* |
 | Agent↔proxy auth | mTLS + Ed25519-signed control channel | **Per-agent bearer token** (hashed at rest, issue/rotate/revoke in the UI); mTLS documented as the production upgrade |

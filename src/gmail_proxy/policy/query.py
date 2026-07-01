@@ -71,6 +71,7 @@ def build_query(
     *,
     category: str | None = None,
     allowed_label_names: list[str] | tuple[str, ...] = (),
+    blocked_label_names: list[str] | tuple[str, ...] = (),
     unread_only: bool = False,
     from_: str | None = None,
     subject: str | None = None,
@@ -123,20 +124,29 @@ def build_query(
 
     q = category_group if not terms else f"{category_group} AND (" + " ".join(terms) + ")"
 
-    _assert_scoped(q, scope_ids, label_names)
+    # Blocklist exclusions (AND-NOT) always apply, even for a single category.
+    blocked_tokens = sorted(f"-label:{label_search_token(n)}" for n in blocked_label_names)
+    if blocked_tokens:
+        q = q + " " + " ".join(blocked_tokens)
+
+    _assert_scoped(q, scope_ids, label_names, list(blocked_label_names))
     return q
 
 
-def _assert_scoped(q: str, scope_ids: set[str], label_names: list[str]) -> None:
+def _assert_scoped(
+    q: str, scope_ids: set[str], label_names: list[str], blocked_names: list[str]
+) -> None:
     """Positive re-scan: every colon-operator must be allowlisted, and the
-    category/label tokens must be exactly those in scope."""
+    category/label tokens must be exactly those in scope (+ blocked exclusions)."""
     for op in _OPERATOR_TOKEN.findall(q):
         if op not in _ALLOWED_OPERATORS:
             raise errors.query_rejected(f"disallowed operator in assembled query: {op!r}")
     found_cats = set(re.findall(r"category:(\w+)", q))
     expected_cats = {SEARCH_TOKEN_BY_CATEGORY_ID[c] for c in scope_ids}
-    found_labels = set(re.findall(r"label:([\w\-/.]+)", q))
-    expected_labels = {label_search_token(n) for n in label_names}
+    found_labels = set(re.findall(r"label:([\w\-/.]+)", q))  # matches label: and -label:
+    expected_labels = {label_search_token(n) for n in label_names} | {
+        label_search_token(n) for n in blocked_names
+    }
     if found_cats != expected_cats or found_labels != expected_labels:
         raise errors.ProxyError(
             500, "query_rejected",

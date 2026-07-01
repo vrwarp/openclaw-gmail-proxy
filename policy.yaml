@@ -18,6 +18,11 @@ allowed_categories: [primary, social, promotions, updates, forums]
 # labels are rejected. Example: [Newsletters, AI-Inbox]. Empty = categories only.
 allowed_labels: []
 
+# Label NAMES (user or system) that DENY access and SUPERSEDE the allowlists: a
+# message carrying any of these is out of scope even if a category/label would
+# allow it. Also immutable to the agent. Example: [Private, Confidential].
+blocked_labels: []
+
 # System labels the agent may toggle.  INBOX => archive/unarchive is allowed;
 # UNREAD => mark read/unread; STARRED => star.  CATEGORY_*/SPAM/TRASH can NEVER
 # be listed here (they are rejected at load) — that is what blocks scope

@@ -28,6 +28,14 @@
       System/broad labels (INBOX, UNREAD, CATEGORY_*, …) are rejected.</div>
   </div>
 
+  <div class="field">
+    <label>Blocked labels <span class="hint">(supersedes the allowlists)</span></label>
+    <input type="text" name="blocked_labels" value="{{ policy.blocked_labels | join(', ') }}"
+           placeholder="e.g. Private, Confidential">
+    <div class="hint">Comma-separated label names (user or system). A message carrying any of these is
+      <em>never</em> in scope, even if a category/label would allow it. Also immutable to the agent.</div>
+  </div>
+
   <div class="row">
     <div class="field">
       <label>Mode</label>
