@@ -95,6 +95,16 @@ Dry-run tester (invoke any tool with full policy enforcement) · Credentials
 (issue/rotate/revoke) · Kill-switch. Screenshots in
 [`docs/screenshots/`](docs/screenshots/).
 
+**Caching (fewer real Gmail API calls).** A `CachingGmailBackend` fronts Gmail
+with: a durable **content cache** (LRU, default 1000 messages — message bodies
+are immutable, so this is safe with no TTL and eliminates repeat full fetches),
+and short **TTL caches** for labels/list/profile. The labels/eligibility TTL
+defaults to **0 (always fresh)** because labels drive the eligibility decision;
+raising it is an explicit freshness-vs-calls tradeoff and every entry is
+invalidated on mutation. All knobs live under `cache:` in `policy.yaml` and on
+the Configuration page; live hit/miss stats and "API calls saved" are on the
+**Cache** page.
+
 **Admin authentication.** By default, a signed session cookie gated on
 `ADMIN_TOKEN`. Optionally enable **"Sign in with Google"** (OIDC), restricted to
 the proxied account — set `ADMIN_OAUTH_CLIENT_ID`/`ADMIN_OAUTH_CLIENT_SECRET`

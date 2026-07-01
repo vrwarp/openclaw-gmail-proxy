@@ -30,7 +30,12 @@ that runs in Docker outside the VM and:
   localhost, never reachable from the VM.
 - Records a hash-chained audit log; supports per-credential rate limits and a
   global kill-switch.
-- Comes with a mock Gmail backend so the full test suite (80+ tests) and the
+- Fronts Gmail with a **caching backend** (`cache.py`) to cut real API calls: a
+  durable LRU **content cache** (immutable bodies, default 1000 msgs) plus short
+  TTL caches for labels/list/profile. The eligibility-labels TTL defaults to 0
+  (always fresh) so caching never widens the confinement decision; entries are
+  invalidated on mutation. Stats surface on the admin Cache page.
+- Comes with a mock Gmail backend so the full test suite (100+ tests) and the
   admin UI run without live credentials.
 
 Code map is in [`README.md`](README.md); screenshots in `docs/screenshots/`.

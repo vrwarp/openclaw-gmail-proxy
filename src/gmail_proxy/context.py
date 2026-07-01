@@ -8,6 +8,7 @@ from pathlib import Path
 
 from .audit import AuditLog
 from .auth import CredentialStore, RateLimiter
+from .cache import CachingGmailBackend
 from .config import Policy, Settings, load_policy
 from .gmail.client import GmailBackend
 from .gmail.mock_client import sample_backend
@@ -43,6 +44,8 @@ class AppContext:
         self.ratelimiter = RateLimiter(
             self.policy.rate_limits.per_minute, self.policy.rate_limits.per_day
         )
+        if isinstance(self.backend, CachingGmailBackend):
+            self.backend.reconfigure(self.policy.cache)
 
 
 def _make_backend(settings: Settings) -> GmailBackend:
@@ -81,7 +84,7 @@ def build_context(
     return AppContext(
         settings=settings,
         policy=policy,
-        backend=backend or _make_backend(settings),
+        backend=CachingGmailBackend(backend or _make_backend(settings), policy.cache),
         audit=AuditLog(data / "audit.log", hmac_key=audit_key),
         credentials=CredentialStore(data / "credentials.json"),
         ratelimiter=RateLimiter(policy.rate_limits.per_minute, policy.rate_limits.per_day),

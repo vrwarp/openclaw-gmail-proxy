@@ -77,14 +77,16 @@ def _h_list(ctx, mode, args):
 
 def _h_get(ctx, mode, args):
     mid = args["id"]
-    _require_eligible(ctx, mid)
+    meta = _require_eligible(ctx, mid)  # fresh labels gate
     try:
-        full = ctx.backend.get_message(mid)
+        full = ctx.backend.get_message(mid)  # content (immutable; may be cache-served)
     except KeyError:
         raise errors.not_eligible(f"id not found: {mid}")
     except GmailError as e:
         raise errors.upstream_error(str(e))
-    if not is_eligible(full.label_ids, _allowed_ids(ctx)):  # re-check on full labels
+    # Authoritative labels are the fresh metadata read, NOT the cached full fetch.
+    full.label_ids = meta.label_ids
+    if not is_eligible(full.label_ids, _allowed_ids(ctx)):
         raise errors.not_eligible("reclassified between metadata and full fetch")
     return output.format_detail(full, ctx.policy, ctx.sender_salt), [mid]
 

@@ -36,3 +36,13 @@ max_results_cap: 50
 rate_limits:
   per_minute: 60
   per_day: 5000
+
+# Caching to reduce real Gmail API calls.
+cache:
+  content:
+    enabled: true        # cache immutable message bodies (durable LRU, no TTL)
+    max_messages: 1000
+  metadata_ttl_s: 0      # labels drive eligibility; 0 = always fetch fresh (safest)
+  list_ttl_s: 0          # list/search/counts results (0 = always fresh)
+  labels_ttl_s: 60       # labels.list (invalidated on any label mutation)
+  profile_ttl_s: 300

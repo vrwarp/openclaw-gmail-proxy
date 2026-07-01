@@ -51,6 +51,20 @@
     <div class="field"><label>Rate / day</label><input type="number" name="per_day" value="{{ policy.rate_limits.per_day }}"></div>
   </div>
 
+  <div class="field" style="margin-top:8px">
+    <label>Caching <span class="hint">(reduces real Gmail API calls)</span></label>
+    <div class="checks" style="margin-bottom:10px">
+      <label class="check"><input type="checkbox" name="cache_content_enabled" {{ 'checked' if policy.cache.content.enabled }}> content cache (immutable message bodies)</label>
+    </div>
+    <div class="row">
+      <div class="field"><label>Content cache size (msgs)</label><input type="number" name="cache_content_max" value="{{ policy.cache.content.max_messages }}"></div>
+      <div class="field"><label>Metadata/labels TTL (s)</label><input type="number" name="cache_metadata_ttl" value="{{ policy.cache.metadata_ttl_s }}">
+        <div class="hint">0 = always fresh (safest). &gt;0 opens a small eligibility TOCTOU window.</div></div>
+      <div class="field"><label>List/search TTL (s)</label><input type="number" name="cache_list_ttl" value="{{ policy.cache.list_ttl_s }}"></div>
+      <div class="field"><label>Labels.list TTL (s)</label><input type="number" name="cache_labels_ttl" value="{{ policy.cache.labels_ttl_s }}"></div>
+    </div>
+  </div>
+
   <button class="btn" type="submit">Save & reload</button>
 </form>
 

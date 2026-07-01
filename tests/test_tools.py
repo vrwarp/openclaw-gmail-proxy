@@ -134,7 +134,7 @@ def test_counts_excludes_multi_category_message(ctx):
     # A message in an allowed AND a disallowed category is ineligible (not a
     # subset) and must NOT be counted -- must match what gmail_list would show.
     from gmail_proxy.models import Message
-    ctx.backend.messages["mX"] = Message(
+    ctx.backend.inner.messages["mX"] = Message(
         id="mX", thread_id="tX",
         label_ids=["CATEGORY_PROMOTIONS", "CATEGORY_UPDATES", "UNREAD", "INBOX"],
         headers={"From": "x@y.com", "Subject": "multi", "Date": "2026-06-30T00:00:00+00:00"},

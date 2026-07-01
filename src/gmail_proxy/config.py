@@ -28,6 +28,28 @@ class RateLimits(BaseModel):
     per_day: int = Field(5000, ge=1)
 
 
+class ContentCache(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    # Message CONTENT (headers/body/snippet) is immutable in Gmail, so this
+    # cache is durable (no TTL). It never carries the eligibility decision.
+    enabled: bool = True
+    max_messages: int = Field(1000, ge=0)
+
+
+class CacheConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    content: ContentCache = Field(default_factory=ContentCache)
+    # Labels are MUTABLE and drive eligibility. 0 = always fetch fresh (safest,
+    # default). A positive TTL trades a small time-of-check/use window for fewer
+    # calls; the entry is invalidated whenever the message is mutated.
+    metadata_ttl_s: int = Field(0, ge=0)
+    # list/search results (new mail won't appear until the TTL expires).
+    list_ttl_s: int = Field(0, ge=0)
+    # labels.list (labels change rarely; invalidated on label mutations).
+    labels_ttl_s: int = Field(60, ge=0)
+    profile_ttl_s: int = Field(300, ge=0)
+
+
 class Policy(BaseModel):
     """Validated representation of ``policy.yaml``."""
 
@@ -62,6 +84,8 @@ class Policy(BaseModel):
     max_results_cap: int = Field(50, ge=1, le=500)
 
     rate_limits: RateLimits = Field(default_factory=RateLimits)
+
+    cache: CacheConfig = Field(default_factory=CacheConfig)
 
     # --- validation -------------------------------------------------------
     @field_validator("allowed_categories")

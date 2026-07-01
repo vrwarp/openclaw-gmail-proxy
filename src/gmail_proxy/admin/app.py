@@ -218,6 +218,16 @@ def build_admin_app(ctx: AppContext) -> FastAPI:
                 "per_minute": int(form.get("per_minute", 60)),
                 "per_day": int(form.get("per_day", 5000)),
             },
+            "cache": {
+                "content": {
+                    "enabled": form.get("cache_content_enabled") == "on",
+                    "max_messages": int(form.get("cache_content_max", 1000)),
+                },
+                "metadata_ttl_s": int(form.get("cache_metadata_ttl", 0)),
+                "list_ttl_s": int(form.get("cache_list_ttl", 0)),
+                "labels_ttl_s": int(form.get("cache_labels_ttl", 60)),
+                "profile_ttl_s": ctx.policy.cache.profile_ttl_s,
+            },
         }
         try:
             Policy.model_validate(data)  # validate before writing
@@ -287,6 +297,30 @@ def build_admin_app(ctx: AppContext) -> FastAPI:
         except errors.ProxyError as e:
             result = {"error": e.to_public(), "detail": e.detail}
         return page(request, "playground.html", specs=_PLAYGROUND, result=result, tool=tool)
+
+    # --- cache stats ------------------------------------------------------
+    @app.get("/cache", response_class=HTMLResponse)
+    def cache_view(request: Request):
+        if (r := guard(request)):
+            return r
+        stats = ctx.backend.stats() if hasattr(ctx.backend, "stats") else None
+        return page(request, "cache.html", stats=stats, cfg=ctx.policy.cache)
+
+    @app.post("/cache/reset")
+    def cache_reset(request: Request):
+        if (r := guard(request)):
+            return r
+        if hasattr(ctx.backend, "reset_stats"):
+            ctx.backend.reset_stats()
+        return RedirectResponse("/cache", status_code=303)
+
+    @app.post("/cache/clear")
+    def cache_clear(request: Request):
+        if (r := guard(request)):
+            return r
+        if hasattr(ctx.backend, "clear"):
+            ctx.backend.clear()
+        return RedirectResponse("/cache", status_code=303)
 
     # --- credentials ------------------------------------------------------
     @app.get("/credentials", response_class=HTMLResponse)

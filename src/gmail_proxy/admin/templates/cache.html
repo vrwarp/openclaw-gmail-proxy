@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Cache{% endblock %}
+{% block content %}
+<h1>Cache</h1>
+<p class="sub">Reduces real Gmail API calls. Content (immutable) is cached durably;
+  labels/list/profile use short TTLs. Configure on the <a href="/config">Configuration</a> page.</p>
+
+{% if not stats %}
+<div class="banner warn">Caching backend not active.</div>
+{% else %}
+
+<div class="grid">
+  <div class="card"><div class="label">API calls saved</div><div class="value">{{ stats.api_calls_saved }}</div></div>
+  <div class="card"><div class="label">Content cache</div>
+    <div class="value sm">{{ stats.content.size }} / {{ stats.content.capacity }} msgs</div></div>
+  <div class="card"><div class="label">Content hit rate</div><div class="value">{{ stats.content.hit_rate }}%</div></div>
+  <div class="card"><div class="label">Evictions</div><div class="value sm">{{ stats.content.evictions }}</div></div>
+</div>
+
+<h2>Per-cache</h2>
+<table>
+  <tr><th>Cache</th><th>Kind</th><th>Entries</th><th>Hits</th><th>Misses</th><th>Hit rate</th></tr>
+  <tr>
+    <td class="mono">content</td><td>LRU (immutable, durable)</td>
+    <td>{{ stats.content.size }} / {{ stats.content.capacity }}</td>
+    <td>{{ stats.content.hits }}</td><td>{{ stats.content.misses }}</td>
+    <td>{{ stats.content.hit_rate }}%</td>
+  </tr>
+  {% for name in ['metadata','list','labels','profile'] %}
+  {% set c = stats[name] %}
+  <tr>
+    <td class="mono">{{ name }}</td>
+    <td>TTL {{ c.ttl_s }}s{% if name=='metadata' and c.ttl_s>0 %} <span class="pill warn">freshness tradeoff</span>{% elif c.ttl_s==0 %} <span class="pill neutral">always fresh</span>{% endif %}</td>
+    <td>{{ c.entries }}</td><td>{{ c.hits }}</td><td>{{ c.misses }}</td><td>{{ c.hit_rate }}%</td>
+  </tr>
+  {% endfor %}
+</table>
+
+<div class="panel" style="margin-top:18px">
+  <form method="post" action="/cache/reset" style="display:inline"><button class="btn ghost">Reset stats</button></form>
+  <form method="post" action="/cache/clear" style="display:inline"><button class="btn ghost">Flush cache</button></form>
+  <span class="hint">Metadata TTL of 0 = labels always fetched fresh (no eligibility TOCTOU window).</span>
+</div>
+{% endif %}
+{% endblock %}
