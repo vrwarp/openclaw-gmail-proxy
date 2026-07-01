@@ -24,15 +24,20 @@ jobs:
       # GHCR is used and the Docker Hub steps are skipped (so forks/PRs stay green).
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      # Publish ONLY on a merge to main or a release tag. Explicit ref pin (belt
+      # and suspenders on top of the `on:` trigger). NOTE: the real protection is
+      # branch protection + fork-PR approval + environment/secret scoping — see
+      # docs/ci-security.md — since a PR could edit this file itself.
+      PUBLISH: ${{ github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v3
 
-      # Registry logins + push only run on merge/tags (not pull_request).
+      # Registry logins + push only run on a merge to main or a release tag.
       - name: Log in to GHCR
-        if: github.event_name != 'pull_request'
+        if: env.PUBLISH == 'true'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -40,7 +45,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Log in to Docker Hub
-        if: github.event_name != 'pull_request' && env.DOCKERHUB_TOKEN != ''
+        if: env.PUBLISH == 'true' && env.DOCKERHUB_TOKEN != ''
         uses: docker/login-action@v3
         with:
           username: ${{ env.DOCKERHUB_USERNAME }}
@@ -65,7 +70,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          push: ${{ github.event_name != 'pull_request' }}
+          push: ${{ env.PUBLISH == 'true' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha

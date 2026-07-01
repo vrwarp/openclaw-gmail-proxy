@@ -146,6 +146,11 @@ is available.
   To run the published image instead of building locally, set
   `image: ghcr.io/vrwarp/openclaw-gmail-proxy:latest` (or your Docker Hub image)
   in `docker-compose.yml` and drop the `build:` line.
+- **Supply-chain hardening** — a PR can edit the workflow itself, so the real
+  guards are repo settings (branch protection, Code-Owner review of `.github/`,
+  fork-PR approval, environment-scoped publish secrets). See
+  [`docs/ci-security.md`](docs/ci-security.md); `.github/CODEOWNERS` marks the
+  CI/CD files as owner-reviewed.
 
 ## Layout
 

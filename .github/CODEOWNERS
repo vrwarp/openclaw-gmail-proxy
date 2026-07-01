@@ -1,0 +1,7 @@
+# Changes to CI/CD, the container build, and deploy plumbing require the repo
+# owner's review. This is only ENFORCED when branch protection on `main` has
+# "Require review from Code Owners" enabled (see docs/ci-security.md) — a
+# CODEOWNERS file alone does not block anything.
+/.github/            @vrwarp
+/Dockerfile          @vrwarp
+/docker-compose.yml  @vrwarp
