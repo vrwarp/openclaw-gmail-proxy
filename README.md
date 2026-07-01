@@ -133,11 +133,18 @@ is available.
 - **CI** (`.github/workflows/ci.yml`) runs ruff + the full pytest suite on
   Python 3.11 and 3.12 for every push and pull request.
 - **Docker** (`.github/workflows/docker.yml`) builds the image on every push and
-  PR, and **publishes to GHCR** on pushes/merges and tags:
-  `ghcr.io/vrwarp/openclaw-gmail-proxy` (tagged by branch, `sha`, semver, and
-  `latest` on the default branch). To run the published image instead of
-  building locally, set `image: ghcr.io/vrwarp/openclaw-gmail-proxy:latest` in
-  `docker-compose.yml` and drop the `build:` line.
+  PR, and **publishes on pushes/merges and tags** (tagged by branch, `sha`,
+  semver, and `latest` on the default branch):
+  - **GHCR** always: `ghcr.io/vrwarp/openclaw-gmail-proxy`.
+  - **Docker Hub** when configured: `docker.io/<DOCKERHUB_USERNAME>/openclaw-gmail-proxy`.
+    Add two repo secrets to enable it — **`DOCKERHUB_USERNAME`** and a
+    **`DOCKERHUB_TOKEN`** (a Docker Hub *access token*, Account Settings →
+    Security). Without them the Docker Hub steps are skipped and only GHCR is
+    used, so the workflow still passes.
+
+  To run the published image instead of building locally, set
+  `image: ghcr.io/vrwarp/openclaw-gmail-proxy:latest` (or your Docker Hub image)
+  in `docker-compose.yml` and drop the `build:` line.
 
 ## Layout
 
