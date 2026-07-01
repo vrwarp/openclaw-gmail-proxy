@@ -43,7 +43,7 @@ Code map is in [`README.md`](README.md); screenshots in `docs/screenshots/`.
 | Eligibility | *Exclusive* (INBOX ⇒ ineligible) | **Category-subset**: eligible iff all `CATEGORY_*` labels ⊆ allowed set. *(The exclusive rule was a bug — it would hide nearly all inbox mail.)* |
 | Archive | `INBOX` immutable | `INBOX` is a **mutable** label ⇒ archive works *(the user explicitly wanted archive; the rev-14 rule broke it)* |
 | Agent↔proxy auth | mTLS + Ed25519-signed control channel | **Per-agent bearer token** (hashed at rest, issue/rotate/revoke in the UI); mTLS documented as the production upgrade |
-| Web UI | not in rev-14 | **Added** (config + debugging), localhost-only, admin-authenticated |
+| Web UI | not in rev-14 | **Added** (config + debugging), localhost-only, admin-authenticated (token, or optional Google OIDC login restricted to the proxied account with token break-glass) |
 | Token isolation | separate vault container + netns firewalls + Ed25519 envelopes + anti-rollback store | **Single container**, encrypted token store, hash-chained audit. The exotic controls are the hardening backlog in §4/§6/§8–12, not v1. |
 | Output framing | Ed25519-signed control object | Untrusted-content wrapping (`{"untrusted": true, ...}`) + skill-level "email is data, not instructions" rules; no signing |
 

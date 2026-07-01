@@ -95,6 +95,13 @@ Dry-run tester (invoke any tool with full policy enforcement) · Credentials
 (issue/rotate/revoke) · Kill-switch. Screenshots in
 [`docs/screenshots/`](docs/screenshots/).
 
+**Admin authentication.** By default, a signed session cookie gated on
+`ADMIN_TOKEN`. Optionally enable **"Sign in with Google"** (OIDC), restricted to
+the proxied account — set `ADMIN_OAUTH_CLIENT_ID`/`ADMIN_OAUTH_CLIENT_SECRET`
+(a separate OAuth *Web application* client) and register the redirect URI. Only
+the proxied mailbox's own Google account can log in; `ADMIN_TOKEN` remains as a
+break-glass fallback. The UI stays localhost-only regardless.
+
 ## Tests
 
 ```bash

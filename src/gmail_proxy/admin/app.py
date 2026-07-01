@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import hmac
+import json
 from pathlib import Path
 
 import yaml
@@ -13,9 +15,9 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from .. import errors, tools
-from ..categories import CATEGORY_ID_BY_NAME
-from ..config import Policy, load_policy
+from ..config import Policy
 from ..context import AppContext
+from .google_auth import GoogleOIDC, new_pkce, random_token
 
 _HERE = Path(__file__).parent
 _ALL_CATEGORY_NAMES = ["primary", "social", "promotions", "updates", "forums"]
@@ -44,10 +46,45 @@ def _sign(ctx: AppContext) -> str:
     return hmac.new(_session_key(ctx), b"admin-session", hashlib.sha256).hexdigest()
 
 
+def _seal(ctx: AppContext, payload: dict) -> str:
+    raw = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode()
+    mac = hmac.new(_session_key(ctx), raw.encode(), hashlib.sha256).hexdigest()
+    return raw + "." + mac
+
+
+def _unseal(ctx: AppContext, cookie: str | None) -> dict | None:
+    if not cookie or "." not in cookie:
+        return None
+    raw, mac = cookie.rsplit(".", 1)
+    expected = hmac.new(_session_key(ctx), raw.encode(), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(mac, expected):
+        return None
+    try:
+        return json.loads(base64.urlsafe_b64decode(raw))
+    except (ValueError, json.JSONDecodeError):
+        return None
+
+
 def build_admin_app(ctx: AppContext) -> FastAPI:
     app = FastAPI(title="OpenClaw Gmail Proxy — Admin")
     app.mount("/static", StaticFiles(directory=str(_HERE / "static")), name="static")
     templates = Jinja2Templates(directory=str(_HERE / "templates"))
+
+    # --- Google login (optional) -----------------------------------------
+    s = ctx.settings
+    oidc = (
+        GoogleOIDC(s.admin_oauth_client_id, s.admin_oauth_secret(), s.admin_oauth_redirect_uri)
+        if s.google_login_enabled else None
+    )
+    # Pin the account allowed into the admin UI: explicit config, else the
+    # proxied mailbox's own address.
+    allowed_email = (s.admin_allowed_email or "").lower()
+    if not allowed_email:
+        try:
+            allowed_email = (ctx.backend.get_profile().get("emailAddress") or "").lower()
+        except Exception:  # noqa: BLE001
+            allowed_email = ""
+    allowed_sub = s.admin_allowed_sub or ""
 
     def authed(request: Request) -> bool:
         cookie = request.cookies.get("admin_session")
@@ -60,25 +97,74 @@ def build_admin_app(ctx: AppContext) -> FastAPI:
         return templates.TemplateResponse(request, name, ctx_data)
 
     # --- auth -------------------------------------------------------------
+    def _login_ctx(error: str | None = None) -> dict:
+        return {"error": error, "google_enabled": oidc is not None,
+                "allowed_email": allowed_email}
+
+    def _grant_session(to: str = "/") -> RedirectResponse:
+        resp = RedirectResponse(to, status_code=303)
+        resp.set_cookie("admin_session", _sign(ctx), httponly=True, samesite="strict")
+        return resp
+
     @app.get("/login", response_class=HTMLResponse)
     def login_form(request: Request):
-        return templates.TemplateResponse(request, "login.html", {"error": None})
+        return templates.TemplateResponse(request, "login.html", _login_ctx())
 
     @app.post("/login")
     def login(request: Request, token: str = Form("")):
+        # Break-glass token login (works even if Google is unreachable).
         expected = ctx.settings.admin_token or "dev-insecure"
         if not hmac.compare_digest(token, expected):
             return templates.TemplateResponse(
-                request, "login.html", {"error": "Invalid admin token"}, status_code=401
+                request, "login.html", _login_ctx("Invalid admin token"), status_code=401
             )
-        resp = RedirectResponse("/", status_code=303)
-        resp.set_cookie("admin_session", _sign(ctx), httponly=True, samesite="strict")
-        return resp
+        return _grant_session()
 
     @app.post("/logout")
     def logout():
         resp = RedirectResponse("/login", status_code=303)
         resp.delete_cookie("admin_session")
+        return resp
+
+    # --- Google OIDC login (restricted to the proxied account) ------------
+    @app.get("/auth/google")
+    def auth_google():
+        if oidc is None:
+            return RedirectResponse("/login", status_code=303)
+        state, nonce = random_token(), random_token()
+        verifier, challenge = new_pkce()
+        resp = RedirectResponse(oidc.authorization_url(state, nonce, challenge), status_code=303)
+        # SameSite=Lax so the tx cookie survives the top-level redirect back from Google.
+        resp.set_cookie("oauth_tx", _seal(ctx, {"state": state, "nonce": nonce, "verifier": verifier}),
+                        httponly=True, samesite="lax", max_age=600)
+        return resp
+
+    @app.get("/auth/callback", response_class=HTMLResponse)
+    def auth_callback(request: Request, code: str | None = None, state: str | None = None,
+                      error: str | None = None):
+        if oidc is None:
+            return RedirectResponse("/login", status_code=303)
+        tx = _unseal(ctx, request.cookies.get("oauth_tx"))
+
+        def deny(msg: str, sc: int = 403):
+            r = templates.TemplateResponse(request, "login.html", _login_ctx(msg), status_code=sc)
+            r.delete_cookie("oauth_tx")
+            return r
+
+        if error or not code or not state or not tx \
+                or not hmac.compare_digest(state, tx.get("state", "")):
+            return deny("Google sign-in failed or was cancelled.")
+        try:
+            claims = oidc.exchange_and_verify(code, tx["verifier"], tx["nonce"])
+        except Exception:  # noqa: BLE001
+            return deny("Could not verify Google identity.")
+        email = (claims.get("email") or "").lower()
+        if not claims.get("email_verified") or (allowed_email and email != allowed_email):
+            return deny("This Google account is not authorized for the proxied mailbox.")
+        if allowed_sub and claims.get("sub") != allowed_sub:
+            return deny("This Google account is not authorized for the proxied mailbox.")
+        resp = _grant_session()
+        resp.delete_cookie("oauth_tx")
         return resp
 
     def guard(request: Request):

@@ -128,8 +128,35 @@ class Settings(BaseModel):
     admin_host: str = "127.0.0.1"
     admin_port: int = 8081
 
-    # Admin UI credential (bearer / basic).  Required in production.
+    # Admin UI credential (bearer / basic).  Break-glass fallback when Google
+    # login is enabled; required otherwise.
     admin_token: str | None = None
+
+    # Admin UI "Sign in with Google" (OIDC). When a client id + secret are set,
+    # the login page offers Google sign-in restricted to the proxied account.
+    admin_oauth_client_id: str | None = None
+    admin_oauth_client_secret: str | None = None
+    admin_oauth_client_secret_file: str | None = None
+    admin_oauth_redirect_uri: str = "http://localhost:8081/auth/callback"
+    # The Google account allowed into the admin UI. If unset, it is pinned at
+    # startup to the proxied account's own address (users.getProfile).
+    admin_allowed_email: str | None = None
+    admin_allowed_sub: str | None = None
+
+    @property
+    def google_login_enabled(self) -> bool:
+        return bool(self.admin_oauth_client_id and self.admin_oauth_secret())
+
+    def admin_oauth_secret(self) -> str | None:
+        if self.admin_oauth_client_secret:
+            return self.admin_oauth_client_secret
+        if self.admin_oauth_client_secret_file:
+            from pathlib import Path as _P
+
+            p = _P(self.admin_oauth_client_secret_file)
+            if p.exists():
+                return p.read_text().strip()
+        return None
 
     @classmethod
     def from_env(cls, environ: dict[str, str] | None = None) -> "Settings":
@@ -151,4 +178,11 @@ class Settings(BaseModel):
             admin_host=get("ADMIN_HOST", "127.0.0.1"),
             admin_port=int(get("ADMIN_PORT", "8081")),
             admin_token=get("ADMIN_TOKEN"),
+            admin_oauth_client_id=get("ADMIN_OAUTH_CLIENT_ID"),
+            admin_oauth_client_secret=get("ADMIN_OAUTH_CLIENT_SECRET"),
+            admin_oauth_client_secret_file=get("ADMIN_OAUTH_CLIENT_SECRET_FILE"),
+            admin_oauth_redirect_uri=get("ADMIN_OAUTH_REDIRECT_URI",
+                                         "http://localhost:8081/auth/callback"),
+            admin_allowed_email=get("ADMIN_ALLOWED_EMAIL"),
+            admin_allowed_sub=get("ADMIN_ALLOWED_SUB"),
         )

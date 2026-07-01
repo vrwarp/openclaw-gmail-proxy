@@ -19,6 +19,11 @@ services:
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?set in .env}
       GOOGLE_CLIENT_SECRET_FILE: /secrets/client_secret
       ADMIN_TOKEN: ${ADMIN_TOKEN:?set in .env}
+      # Optional "Sign in with Google" for the admin UI (restricted to the proxied account).
+      ADMIN_OAUTH_CLIENT_ID: ${ADMIN_OAUTH_CLIENT_ID:-}
+      ADMIN_OAUTH_CLIENT_SECRET: ${ADMIN_OAUTH_CLIENT_SECRET:-}
+      ADMIN_OAUTH_REDIRECT_URI: ${ADMIN_OAUTH_REDIRECT_URI:-http://localhost:8081/auth/callback}
+      ADMIN_ALLOWED_EMAIL: ${ADMIN_ALLOWED_EMAIL:-}
       MCP_HOST: 0.0.0.0
       MCP_PORT: "8443"
       ADMIN_HOST: 0.0.0.0
