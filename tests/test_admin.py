@@ -32,6 +32,14 @@ def test_login_and_dashboard(client):
     assert r.status_code == 200 and "Dashboard" in r.text
 
 
+def test_session_cookie_is_lax(client):
+    # Must be Lax, not Strict, or the Gmail OAuth callback (a cross-site
+    # top-level GET from Google) would not carry the session and bounce /login.
+    setc = _login(client).headers["set-cookie"].lower()
+    assert "admin_session=" in setc and "samesite=lax" in setc
+    assert "samesite=strict" not in setc
+
+
 def test_config_save_reloads_policy(client, ctx):
     _login(client)
     r = client.post("/config", data={

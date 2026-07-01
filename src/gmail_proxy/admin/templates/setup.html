@@ -9,14 +9,17 @@
 
 <h2>1 · Gmail connection</h2>
 <div class="panel">
-  {% if status.connected %}
+  {% if status.demo %}
+    <p><span class="pill warn">demo · mock backend</span> Running against sample
+       data. Configure the Google OAuth client below to connect a real mailbox —
+       no <code>GMAIL_BACKEND</code> change needed.</p>
+    <a class="btn" href="#oauth-client">Configure OAuth client ↓</a>
+  {% elif status.connected %}
     <p><span class="pill ok">● connected</span> &nbsp; <strong>{{ status.email }}</strong></p>
     {% if status.scopes %}<p class="hint">Scopes: {{ status.scopes | join(', ') }}</p>{% endif %}
     <form method="post" action="/setup/gmail/disconnect" style="margin-top:10px">
       <button class="btn ghost" type="submit">Disconnect</button>
     </form>
-  {% elif status.backend == 'mock' %}
-    <p><span class="pill warn">mock backend</span> Running against sample data — set <code>GMAIL_BACKEND=google</code> to connect a real mailbox.</p>
   {% else %}
     <p><span class="pill danger">● not connected</span></p>
     {% if status.client_configured %}
@@ -29,7 +32,7 @@
   {% endif %}
 </div>
 
-<h2>Google OAuth client</h2>
+<h2 id="oauth-client">Google OAuth client</h2>
 <div class="panel">
   <p class="hint" style="margin-top:0">
     In <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Google Cloud → Credentials</a>,

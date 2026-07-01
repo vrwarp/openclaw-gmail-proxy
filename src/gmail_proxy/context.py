@@ -101,15 +101,7 @@ class AppContext:
 
     def gmail_client_creds(self) -> tuple[str | None, str | None]:
         """(client_id, client_secret) from the stored OAuth client, else env."""
-        client = self.oauth_client_store().load()
-        if client:
-            return client.client_id, client.client_secret
-        secret = None
-        if self.settings.google_client_secret_file:
-            p = Path(self.settings.google_client_secret_file)
-            if p.exists():
-                secret = p.read_text().strip()
-        return self.settings.google_client_id, secret
+        return _resolve_client_creds(self.settings, self.data_dir)
 
     def rebuild_backend(self) -> None:
         self.backend = CachingGmailBackend(
@@ -129,18 +121,24 @@ class AppContext:
     def gmail_status(self) -> dict:
         s = self.settings
         client_id, client_secret = self.gmail_client_creds()
+        client_configured = bool(client_id and client_secret)
+        # Demo mode: mock backend with no real OAuth client configured. As soon
+        # as a client is configured we present the real-Gmail connection flow so
+        # the operator can connect from the Setup page.
+        demo = s.gmail_backend != "google" and not client_configured
         status = {
             "backend": s.gmail_backend,
-            "client_configured": bool(client_id and client_secret),
+            "demo": demo,
+            "client_configured": client_configured,
             "token_present": self.token_store().exists(),
             "connected": False,
             "email": None,
             "scopes": [],
         }
-        if s.gmail_backend == "mock":
+        if demo:
             status.update(connected=True, email="(mock backend)")
             return status
-        if status["client_configured"] and status["token_present"]:
+        if client_configured and status["token_present"]:
             try:
                 profile = self.backend.get_profile()
                 status.update(connected=True, email=profile.get("emailAddress"))
@@ -151,24 +149,33 @@ class AppContext:
         return status
 
 
-def _make_backend(settings: Settings, data: Path) -> GmailBackend:
-    if settings.gmail_backend != "google":
-        return sample_backend()
-
-    from .gmail.google_client import GoogleGmail
-
-    store = TokenStore(settings.token_store_path, _resolve_encryption_key(settings, data))
+def _resolve_client_creds(settings: Settings, data: Path) -> tuple[str | None, str | None]:
+    """(client_id, client_secret) from the stored OAuth client, else env/file."""
     client = OAuthClientStore(data / "gmail_oauth.json").load()
     if client:
-        client_id, client_secret = client.client_id, client.client_secret
-    else:
-        client_id = settings.google_client_id
-        client_secret = None
-        if settings.google_client_secret_file and Path(settings.google_client_secret_file).exists():
-            client_secret = Path(settings.google_client_secret_file).read_text().strip()
+        return client.client_id, client.client_secret
+    client_secret = None
+    if settings.google_client_secret_file and Path(settings.google_client_secret_file).exists():
+        client_secret = Path(settings.google_client_secret_file).read_text().strip()
+    return settings.google_client_id, client_secret
 
-    if not (client_id and client_secret and store.exists()):
+
+def _make_backend(settings: Settings, data: Path) -> GmailBackend:
+    client_id, client_secret = _resolve_client_creds(settings, data)
+    client_configured = bool(client_id and client_secret)
+
+    # Demo mode: the mock backend with NO real OAuth client configured. Once a
+    # client is configured (or GMAIL_BACKEND=google), switch to real Gmail so the
+    # whole connection can be driven from the Setup page even on the default
+    # (mock) image.
+    if settings.gmail_backend != "google" and not client_configured:
+        return sample_backend()
+
+    store = TokenStore(settings.token_store_path, _resolve_encryption_key(settings, data))
+    if not (client_configured and store.exists()):
         return NotConnectedBackend()
+
+    from .gmail.google_client import GoogleGmail
     try:
         return GoogleGmail(store, client_id, client_secret)
     except Exception:  # noqa: BLE001 - bad/partial token -> present as not connected

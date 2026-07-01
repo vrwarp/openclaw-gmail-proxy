@@ -107,7 +107,11 @@ def build_admin_app(ctx: AppContext) -> FastAPI:
 
     def _grant_session(to: str = "/") -> RedirectResponse:
         resp = RedirectResponse(to, status_code=303)
-        resp.set_cookie("admin_session", _sign(ctx), httponly=True, samesite="strict")
+        # SameSite=Lax (not Strict): the Gmail OAuth callback is a top-level GET
+        # navigation coming from accounts.google.com, and a Strict cookie would
+        # not be sent — so the callback's auth guard would bounce to /login.
+        # Lax still withholds the cookie on cross-site POST/subresource requests.
+        resp.set_cookie("admin_session", _sign(ctx), httponly=True, samesite="lax")
         return resp
 
     @app.get("/login", response_class=HTMLResponse)

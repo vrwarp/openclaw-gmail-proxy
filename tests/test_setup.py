@@ -97,6 +97,43 @@ def test_full_connect_flow_via_admin_ui(tmp_path, monkeypatch):
     assert ctx.gmail_status()["connected"] is False
 
 
+def test_connect_flow_on_default_mock_backend(tmp_path, monkeypatch):
+    """Regression: on the default (mock) backend, saving an OAuth client must
+    leave demo mode and surface the connect flow — previously mock reported
+    itself 'connected' and hid the Connect button entirely."""
+    monkeypatch.setattr("gmail_proxy.gmail.google_client.GoogleGmail", _FakeGoogle)
+    monkeypatch.setattr(
+        "gmail_proxy.gmail.oauth.exchange_code",
+        lambda client, code, verifier: {
+            "access_token": "a", "refresh_token": "r",
+            "token_uri": "t", "scopes": ["https://www.googleapis.com/auth/gmail.modify"]},
+    )
+    # No gmail_backend -> defaults to "mock".
+    settings = Settings(data_dir=str(tmp_path), admin_token="s",
+                        token_store_path=str(tmp_path / "token.json"))
+    ctx = build_context(settings, policy=Policy(allowed_categories=["promotions"]))
+    assert ctx.gmail_status()["demo"] is True  # pristine mock = demo
+    client = TestClient(build_admin_app(ctx))
+    client.post("/login", data={"token": "s"})
+
+    # Saving a real client exits demo mode and shows the Connect button.
+    client.post("/setup/gmail/client", data={
+        "client_id": "cid", "client_secret": "sec",
+        "redirect_uri": "http://localhost:8081/setup/gmail/callback"})
+    st = ctx.gmail_status()
+    assert st["demo"] is False and st["connected"] is False
+    assert "Connect Gmail" in client.get("/setup").text
+
+    # And the connect flow actually wires up real Gmail (no GMAIL_BACKEND change).
+    r = client.get("/setup/gmail/connect", follow_redirects=False)
+    state = parse_qs(urlparse(r.headers["location"]).query)["state"][0]
+    r = client.get(f"/setup/gmail/callback?code=abc&state={state}", follow_redirects=False)
+    assert "connected=1" in r.headers["location"]
+    assert ctx.gmail_status()["connected"] is True
+    res = tools.call_tool(ctx, "c", "read_write", "gmail_list_messages", {"category": "promotions"})
+    assert res["_control"]["count"] >= 1
+
+
 def test_setup_page_renders(tmp_path):
     ctx = _google_ctx(tmp_path)
     client = TestClient(build_admin_app(ctx))
