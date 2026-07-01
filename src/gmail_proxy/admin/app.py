@@ -41,7 +41,9 @@ _PLAYGROUND = {
 
 
 def _session_key(ctx: AppContext) -> bytes:
-    return hashlib.sha256((ctx.settings.admin_token or "dev-insecure").encode()).digest()
+    # build_context() always resolves a real token (env value or a generated,
+    # persisted one), so there is no insecure shared default here.
+    return hashlib.sha256((ctx.settings.admin_token or "").encode()).digest()
 
 
 def _sign(ctx: AppContext) -> str:
@@ -114,9 +116,11 @@ def build_admin_app(ctx: AppContext) -> FastAPI:
 
     @app.post("/login")
     def login(request: Request, token: str = Form("")):
-        # Break-glass token login (works even if Google is unreachable).
-        expected = ctx.settings.admin_token or "dev-insecure"
-        if not hmac.compare_digest(token, expected):
+        # Break-glass token login (works even if Google is unreachable). The
+        # token is always set by build_context (env value or a generated one);
+        # an empty expected token rejects every login rather than allowing "".
+        expected = ctx.settings.admin_token or ""
+        if not expected or not hmac.compare_digest(token, expected):
             return templates.TemplateResponse(
                 request, "login.html", _login_ctx("Invalid admin token"), status_code=401
             )

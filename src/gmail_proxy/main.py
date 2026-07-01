@@ -29,8 +29,14 @@ async def _serve(settings: Settings) -> None:
     )
     print(f"MCP   endpoint : http://{settings.mcp_host}:{settings.mcp_port}/mcp")
     print(f"Admin UI       : http://{settings.admin_host}:{settings.admin_port}/")
-    if not settings.admin_token:
-        print("WARNING: ADMIN_TOKEN is unset — admin UI accepts the dev token 'dev-insecure'.")
+    if ctx.admin_token_generated:
+        bar = "=" * 72
+        print(bar)
+        print("ADMIN_TOKEN was not set — generated a random admin-UI login token:")
+        print(f"    {ctx.settings.admin_token}")
+        print("Log in with this token. It is persisted at <data_dir>/keys/admin_token")
+        print("(back it up with the data volume); set ADMIN_TOKEN to pin your own.")
+        print(bar)
     await asyncio.gather(mcp_server.serve(), admin_server.serve())
 
 

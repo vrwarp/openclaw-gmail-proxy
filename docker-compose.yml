@@ -25,8 +25,10 @@ services:
       # numbers with `id docker_user`. Defaults to 10001 when unset.
       PUID: ${PUID:-10001}
       PGID: ${PGID:-10001}
-      # Required: the admin-UI login token (or configure Google login below).
-      ADMIN_TOKEN: ${ADMIN_TOKEN:?set in .env}
+      # The admin-UI login token. If left unset, a random one is generated on
+      # first start, printed to the container logs (`docker compose logs`), and
+      # persisted under /data — set this to pin your own instead.
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-}
       # Optional: an out-of-band token-encryption key (stronger than the default,
       # which auto-generates and persists a key under /data). Generate with:
       #   python -c "from cryptography.fernet import Fernet;print(Fernet.generate_key().decode())"

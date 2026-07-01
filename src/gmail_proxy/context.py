@@ -30,6 +30,27 @@ def _persisted_secret(path: Path, nbytes: int = 32) -> bytes:
     return val
 
 
+def _resolve_admin_token(settings: Settings, data: Path) -> tuple[str, bool]:
+    """The admin-UI login token. Returns ``(token, generated)``.
+
+    Uses ``ADMIN_TOKEN`` when set; otherwise generates a random token, persists
+    it under the data dir (so sessions survive restarts and the operator can
+    always retrieve it), and flags it as generated so startup prints it."""
+    if settings.admin_token:
+        return settings.admin_token, False
+    path = data / "keys" / "admin_token"
+    if path.exists():
+        return path.read_text().strip(), True
+    token = secrets.token_urlsafe(32)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(token)
+    try:
+        path.chmod(0o600)
+    except OSError:
+        pass
+    return token, True
+
+
 def _resolve_encryption_key(settings: Settings, data: Path) -> str:
     """The Fernet key for the token store: the env value (out-of-band, stronger),
     or an auto-generated key persisted under the data dir (convenient default)."""
@@ -59,6 +80,7 @@ class AppContext:
     killswitch: KillSwitch
     sender_salt: bytes
     data_dir: Path
+    admin_token_generated: bool = False
 
     # --- policy -----------------------------------------------------------
     def reload_policy(self) -> None:
@@ -165,6 +187,7 @@ def build_context(
     keys = data / "keys"
     audit_key = _persisted_secret(keys / "audit_hmac.key")
     sender_salt = _persisted_secret(keys / "sender_salt.key")
+    settings.admin_token, admin_token_generated = _resolve_admin_token(settings, data)
     return AppContext(
         settings=settings,
         policy=policy,
@@ -175,4 +198,5 @@ def build_context(
         killswitch=KillSwitch(data / "FROZEN"),
         sender_salt=sender_salt,
         data_dir=data,
+        admin_token_generated=admin_token_generated,
     )
