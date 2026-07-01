@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}Configuration{% endblock %}
+{% block content %}
+<h1>Configuration</h1>
+<p class="sub">What OpenClaw is allowed to see and do. Saved to <code>policy.yaml</code> and reloaded live.</p>
+
+{% if saved %}<div class="banner ok">Policy saved and reloaded.</div>{% endif %}
+{% if error %}<div class="banner danger">Rejected: {{ error }} — nothing was changed.</div>{% endif %}
+
+<form class="panel" method="post" action="/config">
+  <div class="field">
+    <label>Allowed categories</label>
+    <div class="checks">
+      {% for c in all_categories %}
+      <label class="check"><input type="checkbox" name="allowed_categories" value="{{ c }}"
+        {{ 'checked' if c in policy.allowed_categories }}> {{ c }}</label>
+      {% endfor %}
+    </div>
+    <div class="hint">Enabling <strong>primary</strong> effectively grants near-full-mailbox read/modify (minus permanent delete).</div>
+  </div>
+
+  <div class="field">
+    <label>Allowed labels <span class="hint">(in addition to categories)</span></label>
+    <input type="text" name="allowed_labels" value="{{ policy.allowed_labels | join(', ') }}"
+           placeholder="e.g. Newsletters, AI-Inbox">
+    <div class="hint">Comma-separated user-label names. A message carrying one of these is in scope
+      <em>regardless of category</em>, and these labels become immutable to the agent (anti-smuggling).
+      System/broad labels (INBOX, UNREAD, CATEGORY_*, …) are rejected.</div>
+  </div>
+
+  <div class="field">
+    <label>Blocked labels <span class="hint">(supersedes the allowlists)</span></label>
+    <input type="text" name="blocked_labels" value="{{ policy.blocked_labels | join(', ') }}"
+           placeholder="e.g. Private, Confidential">
+    <div class="hint">Comma-separated label names (user or system). A message carrying any of these is
+      <em>never</em> in scope, even if a category/label would allow it. Also immutable to the agent.</div>
+  </div>
+
+  <div class="row">
+    <div class="field">
+      <label>Mode</label>
+      <select name="mode">
+        <option value="read_write" {{ 'selected' if policy.mode=='read_write' }}>read_write</option>
+        <option value="read_only" {{ 'selected' if policy.mode=='read_only' }}>read_only</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Mutable system labels</label>
+      <input type="text" name="mutable_labels" value="{{ policy.mutable_labels | join(', ') }}">
+      <div class="hint">Comma-separated. INBOX enables archive; UNREAD enables mark-read. CATEGORY_*/SPAM/TRASH always rejected.</div>
+    </div>
+  </div>
+
+  <div class="field">
+    <label>Toggles</label>
+    <div class="checks">
+      <label class="check"><input type="checkbox" name="allow_user_label_mutations" {{ 'checked' if policy.allow_user_label_mutations }}> allow user-label mutations</label>
+      <label class="check"><input type="checkbox" name="allow_trash" {{ 'checked' if policy.allow_trash }}> allow trash</label>
+      <label class="check"><input type="checkbox" name="allow_attachments" {{ 'checked' if policy.allow_attachments }}> allow attachments</label>
+      <label class="check"><input type="checkbox" name="redact_sender_address" {{ 'checked' if policy.redact_sender_address }}> redact sender addresses</label>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="field"><label>Max body bytes</label><input type="number" name="max_body_bytes" value="{{ policy.max_body_bytes }}"></div>
+    <div class="field"><label>Max results cap</label><input type="number" name="max_results_cap" value="{{ policy.max_results_cap }}"></div>
+    <div class="field"><label>Rate / minute</label><input type="number" name="per_minute" value="{{ policy.rate_limits.per_minute }}"></div>
+    <div class="field"><label>Rate / day</label><input type="number" name="per_day" value="{{ policy.rate_limits.per_day }}"></div>
+  </div>
+
+  <div class="field" style="margin-top:8px">
+    <label>Caching <span class="hint">(reduces real Gmail API calls)</span></label>
+    <div class="checks" style="margin-bottom:10px">
+      <label class="check"><input type="checkbox" name="cache_content_enabled" {{ 'checked' if policy.cache.content.enabled }}> content cache (immutable message bodies)</label>
+    </div>
+    <div class="row">
+      <div class="field"><label>Content cache size (msgs)</label><input type="number" name="cache_content_max" value="{{ policy.cache.content.max_messages }}"></div>
+      <div class="field"><label>Metadata/labels TTL (s)</label><input type="number" name="cache_metadata_ttl" value="{{ policy.cache.metadata_ttl_s }}">
+        <div class="hint">0 = always fresh (safest). &gt;0 opens a small eligibility TOCTOU window.</div></div>
+      <div class="field"><label>List/search TTL (s)</label><input type="number" name="cache_list_ttl" value="{{ policy.cache.list_ttl_s }}"></div>
+      <div class="field"><label>Labels.list TTL (s)</label><input type="number" name="cache_labels_ttl" value="{{ policy.cache.labels_ttl_s }}"></div>
+    </div>
+  </div>
+
+  <button class="btn" type="submit">Save & reload</button>
+</form>
+
+<h2>Current policy.yaml</h2>
+<pre class="result">{{ raw_yaml }}</pre>
+{% endblock %}

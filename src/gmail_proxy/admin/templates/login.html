@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in · OpenClaw Gmail Proxy</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="login-wrap">
+  <div class="login-card">
+    <h1>🦞 Gmail Proxy admin</h1>
+    <p>Manage the category-scoped Gmail proxy.</p>
+    {% if error %}<div class="banner danger">{{ error }}</div>{% endif %}
+
+    {% if google_enabled %}
+      <a class="btn" href="/auth/google" style="width:100%;text-align:center">Sign in with Google</a>
+      {% if allowed_email %}<p style="margin-top:10px">Only <strong>{{ allowed_email }}</strong> (the proxied account) is authorized.</p>{% endif %}
+      <div style="margin:18px 0;border-top:1px solid var(--line);text-align:center">
+        <span style="position:relative;top:-10px;background:#fff;padding:0 10px;color:var(--muted);font-size:12px">break-glass</span>
+      </div>
+    {% endif %}
+
+    <form method="post" action="/login">
+      <div class="field">
+        <label for="token">Admin token{% if google_enabled %} (fallback){% endif %}</label>
+        <input type="password" id="token" name="token" autocomplete="current-password">
+      </div>
+      <button class="btn {% if google_enabled %}ghost{% endif %}" type="submit" style="width:100%">
+        Sign in with token
+      </button>
+    </form>
+  </div>
+</div>
+</body>
+</html>

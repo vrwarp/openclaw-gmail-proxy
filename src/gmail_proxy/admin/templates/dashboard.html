@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<h1>Dashboard</h1>
+<p class="sub">Category-scoped Gmail proxy for OpenClaw — scoped account <strong>{{ email }}</strong>.</p>
+
+{% if frozen %}
+<div class="banner danger">Kill-switch engaged — all agent tool calls are refused.
+  <form method="post" action="/unfreeze" style="display:inline"><button class="btn sm ghost">Unfreeze</button></form>
+</div>
+{% endif %}
+
+<div class="grid">
+  <div class="card"><div class="label">Mode</div><div class="value sm">{{ policy.mode }}</div></div>
+  <div class="card"><div class="label">Allowed categories</div>
+    <div class="value sm">{{ policy.allowed_categories | join(", ") }}</div></div>
+  <div class="card"><div class="label">Active credentials</div>
+    <div class="value">{{ creds | selectattr("revoked","equalto",false) | list | length }}</div></div>
+  <div class="card"><div class="label">Audit chain</div>
+    <div class="value sm">{% if chain_ok %}<span class="allow">✓ intact</span>{% else %}<span class="deny">✗ broken</span>{% endif %}</div></div>
+</div>
+
+<h2>Controls</h2>
+<div class="panel">
+  <div class="row" style="align-items:center">
+    {% if frozen %}
+      <form method="post" action="/unfreeze"><button class="btn">Unfreeze proxy</button></form>
+      <span class="pill danger">Frozen since {{ kill.since }}</span>
+    {% else %}
+      <form method="post" action="/freeze"><button class="btn danger">Freeze (kill-switch)</button></form>
+      <span class="hint">Immediately refuses every agent tool call. Use if the agent misbehaves.</span>
+    {% endif %}
+  </div>
+</div>
+
+<h2>Recent activity</h2>
+<table>
+  <tr><th>Time</th><th>Actor</th><th>Tool</th><th>Decision</th><th>Reason</th></tr>
+  {% for r in recent %}
+  <tr>
+    <td class="mono">{{ r.ts[11:19] }}</td>
+    <td class="mono">{{ r.actor }}</td>
+    <td class="mono">{{ r.tool }}</td>
+    <td>{% if r.decision=='allow' %}<span class="allow">allow</span>{% else %}<span class="deny">deny</span>{% endif %}</td>
+    <td class="mono">{{ r.reason or "—" }}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="5" class="hint">No activity yet.</td></tr>
+  {% endfor %}
+</table>
+<p style="margin-top:12px"><a class="btn ghost sm" href="/audit">View full audit log →</a></p>
+{% endblock %}

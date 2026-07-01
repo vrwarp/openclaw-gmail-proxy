@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Admin{% endblock %} · OpenClaw Gmail Proxy</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">🦞 <span>Gmail Proxy</span><small>admin</small></div>
+    <nav>
+      <a href="/" class="{{ 'active' if nav=='dashboard.html' }}">Dashboard</a>
+      <a href="/config" class="{{ 'active' if nav=='config.html' }}">Configuration</a>
+      <a href="/audit" class="{{ 'active' if nav=='audit.html' }}">Audit log</a>
+      <a href="/explain" class="{{ 'active' if nav=='explain.html' }}">Policy explain</a>
+      <a href="/playground" class="{{ 'active' if nav=='playground.html' }}">Dry-run tester</a>
+      <a href="/credentials" class="{{ 'active' if nav=='credentials.html' }}">Credentials</a>
+      <a href="/cache" class="{{ 'active' if nav=='cache.html' }}">Cache</a>
+    </nav>
+    <form class="logout" method="post" action="/logout"><button type="submit">Log out</button></form>
+  </aside>
+  <main>
+    <header class="topbar">
+      <div class="status">
+        {% if frozen %}<span class="pill danger">● FROZEN</span>{% else %}<span class="pill ok">● Active</span>{% endif %}
+        <span class="pill neutral">backend: {{ backend }}</span>
+      </div>
+    </header>
+    <div class="content">{% block content %}{% endblock %}</div>
+  </main>
+</div>
+</body>
+</html>

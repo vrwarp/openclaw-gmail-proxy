@@ -1,0 +1,42 @@
+# Runs the proxy OUTSIDE the VM (e.g. on the VM's docker host).
+#
+# Ports:
+#   8443  MCP endpoint  -> reachable by the OpenClaw VM ONLY. Restrict with a
+#         host firewall / a docker network the VM is on. Do NOT expose publicly.
+#   8081  Admin UI      -> bound to 127.0.0.1 on the host (operator only). Reach
+#         it via an SSH tunnel; it is never reachable from the VM.
+services:
+  gmail-proxy:
+    build: .
+    image: openclaw-gmail-proxy:latest
+    restart: unless-stopped
+    environment:
+      GMAIL_BACKEND: google
+      POLICY_PATH: /app/policy.yaml
+      DATA_DIR: /data
+      TOKEN_STORE_PATH: /secrets/token.json
+      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:?set in .env}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?set in .env}
+      GOOGLE_CLIENT_SECRET_FILE: /secrets/client_secret
+      ADMIN_TOKEN: ${ADMIN_TOKEN:?set in .env}
+      # Optional "Sign in with Google" for the admin UI (restricted to the proxied account).
+      ADMIN_OAUTH_CLIENT_ID: ${ADMIN_OAUTH_CLIENT_ID:-}
+      ADMIN_OAUTH_CLIENT_SECRET: ${ADMIN_OAUTH_CLIENT_SECRET:-}
+      ADMIN_OAUTH_REDIRECT_URI: ${ADMIN_OAUTH_REDIRECT_URI:-http://localhost:8081/auth/callback}
+      ADMIN_ALLOWED_EMAIL: ${ADMIN_ALLOWED_EMAIL:-}
+      MCP_HOST: 0.0.0.0
+      MCP_PORT: "8443"
+      ADMIN_HOST: 0.0.0.0
+      ADMIN_PORT: "8081"
+    volumes:
+      - proxy-data:/data
+      - ./secrets:/secrets:ro
+      - ./policy.yaml:/app/policy.yaml:ro
+    ports:
+      # MCP: change 0.0.0.0 to the host IP on the VM-facing network in production.
+      - "8443:8443"
+      # Admin: localhost-only; tunnel in with `ssh -L 8081:127.0.0.1:8081 host`.
+      - "127.0.0.1:8081:8081"
+
+volumes:
+  proxy-data:
