@@ -17,6 +17,8 @@ from fastapi.templating import Jinja2Templates
 from .. import errors, tools
 from ..config import Policy
 from ..context import AppContext
+from ..gmail import oauth as gmail_oauth
+from ..gmail.oauth import OAuthClient
 from .google_auth import GoogleOIDC, new_pkce, random_token
 
 _HERE = Path(__file__).parent
@@ -238,6 +240,81 @@ def build_admin_app(ctx: AppContext) -> FastAPI:
         except Exception as e:  # noqa: BLE001
             return RedirectResponse(f"/config?error={type(e).__name__}", status_code=303)
         return RedirectResponse("/config?saved=1", status_code=303)
+
+    # --- setup / onboarding ----------------------------------------------
+    @app.get("/setup", response_class=HTMLResponse)
+    def setup_view(request: Request, error: str | None = None, connected: str | None = None):
+        if (r := guard(request)):
+            return r
+        client = ctx.oauth_client_store().load()
+        default_redirect = str(request.base_url).rstrip("/") + "/setup/gmail/callback"
+        return page(request, "setup.html", status=ctx.gmail_status(), client=client,
+                    default_redirect=default_redirect, mcp_port=ctx.settings.mcp_port,
+                    creds=ctx.credentials.list(), error=error, connected=connected,
+                    policy=ctx.policy)
+
+    @app.post("/setup/gmail/client")
+    async def setup_client(request: Request):
+        if (r := guard(request)):
+            return r
+        form = await request.form()
+        cid, sec = form.get("client_id", "").strip(), form.get("client_secret", "").strip()
+        redir = form.get("redirect_uri", "").strip()
+        # Keep the existing secret if the field was left blank on re-save.
+        if not sec and (existing := ctx.oauth_client_store().load()):
+            sec = existing.client_secret
+        if not (cid and sec and redir):
+            return RedirectResponse("/setup?error=client_id, secret and redirect are required", 303)
+        ctx.oauth_client_store().save(OAuthClient(cid, sec, redir))
+        ctx.rebuild_backend()
+        return RedirectResponse("/setup", 303)
+
+    @app.get("/setup/gmail/connect")
+    def setup_connect(request: Request):
+        if (r := guard(request)):
+            return r
+        client = ctx.oauth_client_store().load()
+        if client is None:
+            return RedirectResponse("/setup?error=configure the OAuth client first", 303)
+        state = random_token()
+        verifier, challenge = gmail_oauth.new_pkce()
+        scope = gmail_oauth.SCOPE_READONLY if ctx.policy.mode == "read_only" else gmail_oauth.SCOPE_MODIFY
+        resp = RedirectResponse(gmail_oauth.authorization_url(client, state, challenge, scope), 303)
+        resp.set_cookie("gmail_tx", _seal(ctx, {"state": state, "verifier": verifier}),
+                        httponly=True, samesite="lax", max_age=600)
+        return resp
+
+    @app.get("/setup/gmail/callback", response_class=HTMLResponse)
+    def setup_callback(request: Request, code: str | None = None, state: str | None = None,
+                       error: str | None = None):
+        if (r := guard(request)):
+            return r
+        tx = _unseal(ctx, request.cookies.get("gmail_tx"))
+
+        def back(msg: str):
+            resp = RedirectResponse(f"/setup?error={msg}", 303)
+            resp.delete_cookie("gmail_tx")
+            return resp
+
+        if error or not code or not state or not tx \
+                or not hmac.compare_digest(state, tx.get("state", "")):
+            return back("Google authorization failed or was cancelled")
+        client = ctx.oauth_client_store().load()
+        try:
+            token = gmail_oauth.exchange_code(client, code, tx["verifier"])
+        except Exception:  # noqa: BLE001
+            return back("could not obtain a refresh token — revoke prior access and retry")
+        ctx.connect_gmail(token)
+        resp = RedirectResponse("/setup?connected=1", 303)
+        resp.delete_cookie("gmail_tx")
+        return resp
+
+    @app.post("/setup/gmail/disconnect")
+    def setup_disconnect(request: Request):
+        if (r := guard(request)):
+            return r
+        ctx.disconnect_gmail()
+        return RedirectResponse("/setup", 303)
 
     # --- audit ------------------------------------------------------------
     @app.get("/audit", response_class=HTMLResponse)

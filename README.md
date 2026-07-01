@@ -82,30 +82,66 @@ the endpoint with `Authorization: Bearer <token>`.
 
 ## Production (real Gmail)
 
-1. **Google Cloud:** create a project, enable the Gmail API, create a **Desktop
-   OAuth client**, and download `client_secret.json` into `./secrets/`.
-2. **Keys:** `cp .env.example .env` and fill in `TOKEN_ENCRYPTION_KEY`,
-   `GOOGLE_CLIENT_ID`, and `ADMIN_TOKEN` (the file has generation commands).
-3. **Bootstrap the token** (one time, opens a browser):
-   ```bash
-   python scripts/oauth_bootstrap.py --client-secret ./secrets/client_secret.json \
-       --out ./secrets/token.json --encryption-key "$TOKEN_ENCRYPTION_KEY"
-   ```
-   Uses the `gmail.modify` scope (read + labels/archive, **no permanent delete**);
-   add `--readonly` for a read-only deployment.
-4. **Run:** `docker compose up -d`
-5. **Set scope** on the admin Configuration page. (Enabling **Primary** grants
+The **entire Gmail bootstrap happens in the admin UI** — no CLI, no
+`client_secret.json` on disk, and no pre-baked token.
+
+1. **Google Cloud:** create a project, enable the **Gmail API**, and create an
+   OAuth **Web application** client. Register one redirect URI —
+   `http://localhost:8081/setup/gmail/callback` (the Setup page shows the exact
+   value to paste back).
+2. **Configure & run:** `cp .env.example .env`, set `ADMIN_TOKEN` (the only
+   required value), then `docker compose up -d`.
+3. **Open the admin UI:** tunnel in with `ssh -L 8081:127.0.0.1:8081 host`, then
+   browse to <http://127.0.0.1:8081/> and open the **Setup** page.
+4. **Connect Gmail** on the Setup page:
+   - paste the OAuth client **id + secret** and save it;
+   - click **Connect Gmail** and approve access in Google. The proxy stores an
+     **encrypted refresh token** in its data volume. It requests the
+     `gmail.modify` scope (read + labels/archive, **no permanent delete**).
+5. **Set scope** on the **Configuration** page. (Enabling **Primary** grants
    near full-mailbox read/modify — the UI flags this.)
-6. **Register with OpenClaw:** merge
+6. **Register with OpenClaw:** issue a credential on the **Credentials** page,
+   merge
    [`openclaw-plugin/mcp-registration.json`](openclaw-plugin/mcp-registration.json)
    into `~/.openclaw/openclaw.json`, install
    [`openclaw-plugin/SKILL.md`](openclaw-plugin/SKILL.md), and set the agent's
-   `GMAIL_PROXY_TOKEN` to a credential issued from the admin UI.
+   `GMAIL_PROXY_TOKEN` to that credential. The Setup page prints the exact
+   registration snippet to copy.
 
 > **Network:** keep the MCP port (`8443`) reachable only from the VM (host
 > firewall / private docker network); keep the admin UI (`8081`) on `127.0.0.1`
 > and reach it via an SSH tunnel. mTLS is recommended over bearer tokens in
 > production.
+>
+> **Advanced:** a CLI alternative,
+> [`scripts/oauth_bootstrap.py`](scripts/oauth_bootstrap.py), can mint the token
+> out-of-band (write it to the mapped data volume as `token.json`). The web-UI
+> flow above is the supported path.
+
+## Persistence
+
+All mutable state lives in **one Docker volume plus the policy file** — map
+these two and the container is fully stateful across restarts and image
+upgrades. `docker-compose.yml` already declares both:
+
+| Host mapping           | Container path      | Holds                                                                                             |
+| ---------------------- | ------------------- | ------------------------------------------------------------------------------------------------- |
+| `proxy-data` volume    | `/data`             | encrypted Gmail token, OAuth client config, agent credentials, encryption/HMAC keys, audit log, kill-switch |
+| `./policy.yaml` (bind) | `/app/policy.yaml`  | the scope policy — **writable**, because the admin UI edits it live                                |
+
+Inside `/data`:
+
+- `token.json` — the Gmail refresh token, **encrypted at rest**
+- `gmail_oauth.json` — the Google OAuth client id/secret (entered on Setup)
+- `credentials.json` — issued agent bearer tokens (stored hashed)
+- `keys/` — auto-generated Fernet (token), HMAC (audit), and sender-hash keys
+- `audit.log` — tamper-evident, hash-chained allow/deny log
+- `FROZEN` — present only while the kill-switch is engaged
+
+Back up the `proxy-data` volume to preserve the Gmail connection and audit
+trail. If you set `TOKEN_ENCRYPTION_KEY` out-of-band the token is encrypted with
+that; otherwise a key is generated once and kept in `keys/token_fernet.key` —
+losing it just means reconnecting on the Setup page.
 
 ## Admin web UI (config + debugging)
 
@@ -158,7 +194,7 @@ src/gmail_proxy/        proxy server
   admin/                FastAPI admin UI
   cache.py              caching backend
 openclaw-plugin/        SKILL.md + example MCP registration
-scripts/oauth_bootstrap.py
+scripts/oauth_bootstrap.py   optional CLI alternative to the web-UI connect
 tests/                  pytest suite (+ Playwright e2e)
 DESIGN.md               full design & threat model
 ```

@@ -17,6 +17,10 @@ class GmailError(Exception):
     """Raised by a backend when an upstream Gmail call fails (fail-closed)."""
 
 
+class NotConnectedError(GmailError):
+    """Gmail has not been connected yet (complete setup in the admin UI)."""
+
+
 class GmailBackend(ABC):
     @abstractmethod
     def list_message_ids(
@@ -53,3 +57,36 @@ class GmailBackend(ABC):
     @abstractmethod
     def get_profile(self) -> dict:
         """``{"emailAddress": ..., "messagesTotal": ...}``."""
+
+
+class NotConnectedBackend(GmailBackend):
+    """Placeholder backend used before Gmail is connected. Every call fails
+    closed with :class:`NotConnectedError` so tools deny cleanly; the admin UI
+    reports the disconnected state and offers the connect flow."""
+
+    def _fail(self):
+        raise NotConnectedError("Gmail is not connected — finish setup in the admin UI")
+
+    def list_message_ids(self, q, max_results, page_token):
+        self._fail()
+
+    def get_message(self, message_id):
+        self._fail()
+
+    def get_message_metadata(self, message_id):
+        self._fail()
+
+    def get_thread(self, thread_id):
+        self._fail()
+
+    def modify_labels(self, message_id, add_ids, remove_ids):
+        self._fail()
+
+    def trash(self, message_id):
+        self._fail()
+
+    def list_labels(self):
+        self._fail()
+
+    def get_profile(self):
+        self._fail()

@@ -13,6 +13,7 @@ COPY policy.yaml ./policy.yaml
 
 ENV DATA_DIR=/data \
     POLICY_PATH=/app/policy.yaml \
+    TOKEN_STORE_PATH=/data/token.json \
     MCP_HOST=0.0.0.0 MCP_PORT=8443 \
     ADMIN_HOST=0.0.0.0 ADMIN_PORT=8081
 
