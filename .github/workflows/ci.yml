@@ -34,3 +34,31 @@ jobs:
 
       - name: Test (pytest)
         run: pytest -q
+
+  # Non-editable install in a clean venv: catches wheel-packaging gaps (e.g. the
+  # admin templates/static data files) that editable installs mask.
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install the built package (not editable)
+        run: python -m pip install .
+      - name: Boot the admin app from the installed package
+        env:
+          GMAIL_BACKEND: mock
+          ADMIN_TOKEN: ci
+        run: |
+          python - <<'PY'
+          import pathlib, gmail_proxy.admin
+          base = pathlib.Path(gmail_proxy.admin.__file__).parent
+          assert (base / "static" / "style.css").exists(), "admin static not packaged"
+          assert list((base / "templates").glob("*.html")), "admin templates not packaged"
+          from gmail_proxy.config import Settings
+          from gmail_proxy.context import build_context
+          from gmail_proxy.admin.app import build_admin_app
+          build_admin_app(build_context(Settings.from_env()))  # mounts StaticFiles
+          print("installed package boots OK")
+          PY

@@ -75,3 +75,19 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # Actually start the image and hit /healthz — catches runtime-only failures
+      # (e.g. missing packaged data files) that a build-only job cannot.
+      - name: Smoke test (container starts + healthz)
+        run: |
+          docker buildx build --load -t ogp-smoke:ci .
+          cid=$(docker run -d -e ADMIN_TOKEN=ci -e GMAIL_BACKEND=mock -p 8081:8081 ogp-smoke:ci)
+          ok=""
+          for _ in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8081/healthz >/dev/null; then ok=1; break; fi
+            sleep 1
+          done
+          echo "--- container logs ---"; docker logs "$cid" 2>&1 | tail -40
+          docker rm -f "$cid" >/dev/null 2>&1 || true
+          [ -n "$ok" ] || { echo "::error::image did not become healthy"; exit 1; }
+          echo "image healthy"

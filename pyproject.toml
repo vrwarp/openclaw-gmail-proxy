@@ -34,6 +34,12 @@ gmail-proxy = "gmail_proxy.main:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+# The admin UI ships non-Python data files (templates + static assets). Without
+# this they are excluded from the wheel, and the installed package (Docker image)
+# crashes at startup mounting StaticFiles.
+[tool.setuptools.package-data]
+"gmail_proxy.admin" = ["templates/*.html", "static/*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
