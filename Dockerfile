@@ -1,7 +1,8 @@
 FROM python:3.12-slim
 
-# Run as a non-root user.
-RUN useradd --uid 10001 --create-home --shell /usr/sbin/nologin proxy
+# Run as a non-root user. (Note: the Debian base already ships a system user
+# named `proxy` at uid 13, so we use a distinct name to avoid a collision.)
+RUN useradd --uid 10001 --create-home --shell /usr/sbin/nologin appuser
 
 WORKDIR /app
 COPY pyproject.toml ./
@@ -15,8 +16,8 @@ ENV DATA_DIR=/data \
     MCP_HOST=0.0.0.0 MCP_PORT=8443 \
     ADMIN_HOST=0.0.0.0 ADMIN_PORT=8081
 
-RUN mkdir -p /data /secrets && chown -R proxy:proxy /data /secrets
-USER proxy
+RUN mkdir -p /data /secrets && chown -R appuser:appuser /data /secrets
+USER appuser
 
 EXPOSE 8443 8081
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
