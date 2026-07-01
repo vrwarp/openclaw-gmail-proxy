@@ -89,8 +89,10 @@ The **entire Gmail bootstrap happens in the admin UI** — no CLI, no
    OAuth **Web application** client. Register one redirect URI —
    `http://localhost:8081/setup/gmail/callback` (the Setup page shows the exact
    value to paste back).
-2. **Configure & run:** `cp .env.example .env`, set `ADMIN_TOKEN` (the only
-   required value), then `docker compose up -d`.
+2. **Configure & run:** `cp .env.example .env` (optionally set `ADMIN_TOKEN` to
+   pin your own admin login), then `docker compose up -d`. If you leave
+   `ADMIN_TOKEN` blank, a random one is generated on first start and printed to
+   the logs — grab it with `docker compose logs gmail-proxy`.
 3. **Open the admin UI:** tunnel in with `ssh -L 8081:127.0.0.1:8081 host`, then
    browse to <http://127.0.0.1:8081/> and open the **Setup** page.
 4. **Connect Gmail** on the Setup page:
@@ -134,7 +136,8 @@ Inside `/data`:
 - `token.json` — the Gmail refresh token, **encrypted at rest**
 - `gmail_oauth.json` — the Google OAuth client id/secret (entered on Setup)
 - `credentials.json` — issued agent bearer tokens (stored hashed)
-- `keys/` — auto-generated Fernet (token), HMAC (audit), and sender-hash keys
+- `keys/` — auto-generated Fernet (token), HMAC (audit), and sender-hash keys,
+  plus `admin_token` when `ADMIN_TOKEN` was left unset
 - `audit.log` — tamper-evident, hash-chained allow/deny log
 - `FROZEN` — present only while the kill-switch is engaged
 
