@@ -69,6 +69,16 @@ def test_playground_runs_tool(client):
     assert r.status_code == 200 and "unread_by_category" in r.text
 
 
+def test_playground_select_shows_fields_without_running(client):
+    # Selecting a tool (GET) reveals its Run button but must NOT execute it.
+    _login(client)
+    r = client.get("/playground?tool=gmail_counts")
+    assert r.status_code == 200
+    assert "Run gmail_counts" in r.text          # fields/run button revealed
+    assert "unread_by_category" not in r.text    # but the tool did not run
+    assert "<h2>Result</h2>" not in r.text
+
+
 def test_explain(client):
     _login(client)
     r = client.get("/explain?id=m010")  # personal -> not eligible

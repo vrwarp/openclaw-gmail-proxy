@@ -362,10 +362,14 @@ def build_admin_app(ctx: AppContext) -> FastAPI:
 
     # --- dry-run playground ----------------------------------------------
     @app.get("/playground", response_class=HTMLResponse)
-    def playground_view(request: Request):
+    def playground_view(request: Request, tool: str | None = None):
         if (r := guard(request)):
             return r
-        return page(request, "playground.html", specs=_PLAYGROUND, result=None, tool=None)
+        # Selecting a tool just reveals its argument fields (no run) — the tool
+        # only executes when the Run button POSTs.
+        if tool not in _PLAYGROUND:
+            tool = None
+        return page(request, "playground.html", specs=_PLAYGROUND, result=None, tool=tool)
 
     @app.post("/playground", response_class=HTMLResponse)
     async def playground_run(request: Request):

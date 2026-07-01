@@ -7,7 +7,7 @@
 <form class="panel" method="post" action="/playground" id="pg">
   <div class="field">
     <label>Tool</label>
-    <select name="tool" onchange="document.getElementById('pg').submit()">
+    <select name="tool" onchange="location = this.value ? '/playground?tool=' + encodeURIComponent(this.value) : '/playground'">
       <option value="">— choose a tool —</option>
       {% for name in specs %}<option value="{{ name }}" {{ 'selected' if name==tool }}>{{ name }}</option>{% endfor %}
     </select>
