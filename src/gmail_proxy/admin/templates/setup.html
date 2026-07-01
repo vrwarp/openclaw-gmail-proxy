@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Setup{% endblock %}
+{% block content %}
+<h1>Setup</h1>
+<p class="sub">Connect your mailbox and hand the agent a credential — no CLI required.</p>
+
+{% if connected %}<div class="banner ok">Gmail connected.</div>{% endif %}
+{% if error %}<div class="banner danger">{{ error }}</div>{% endif %}
+
+<h2>1 · Gmail connection</h2>
+<div class="panel">
+  {% if status.connected %}
+    <p><span class="pill ok">● connected</span> &nbsp; <strong>{{ status.email }}</strong></p>
+    {% if status.scopes %}<p class="hint">Scopes: {{ status.scopes | join(', ') }}</p>{% endif %}
+    <form method="post" action="/setup/gmail/disconnect" style="margin-top:10px">
+      <button class="btn ghost" type="submit">Disconnect</button>
+    </form>
+  {% elif status.backend == 'mock' %}
+    <p><span class="pill warn">mock backend</span> Running against sample data — set <code>GMAIL_BACKEND=google</code> to connect a real mailbox.</p>
+  {% else %}
+    <p><span class="pill danger">● not connected</span></p>
+    {% if status.client_configured %}
+      <p>Click connect, approve access in Google, and you're done. Requests the
+         <code>{{ 'gmail.readonly' if policy is defined and policy.mode=='read_only' else 'gmail.modify' }}</code> scope (offline).</p>
+      <a class="btn" href="/setup/gmail/connect">Connect Gmail</a>
+    {% else %}
+      <p class="hint">Configure the Google OAuth client below first.</p>
+    {% endif %}
+  {% endif %}
+</div>
+
+<h2>Google OAuth client</h2>
+<div class="panel">
+  <p class="hint" style="margin-top:0">
+    In <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Google Cloud → Credentials</a>,
+    enable the Gmail API and create an OAuth <strong>Web application</strong> client. Register the redirect URI below,
+    then paste the client id + secret here.
+  </p>
+  <form method="post" action="/setup/gmail/client">
+    <div class="field"><label>Client ID</label>
+      <input type="text" name="client_id" value="{{ client.client_id if client else '' }}"
+             placeholder="xxxxx.apps.googleusercontent.com"></div>
+    <div class="field"><label>Client secret</label>
+      <input type="password" name="client_secret" placeholder="{{ '•••••••• (unchanged)' if client else 'GOCSPX-…' }}"></div>
+    <div class="field"><label>Redirect URI <span class="hint">(register this exact value in Google)</span></label>
+      <input type="text" name="redirect_uri" value="{{ client.redirect_uri if client else default_redirect }}"></div>
+    <button class="btn" type="submit">Save client</button>
+  </form>
+</div>
+
+<h2>2 · Scope</h2>
+<div class="panel">
+  <p style="margin:0">Choose which categories/labels the agent may access on the
+    <a href="/config">Configuration</a> page.</p>
+</div>
+
+<h2>3 · Give OpenClaw a token</h2>
+<div class="panel">
+  <p style="margin-top:0">Issue an agent credential on the
+    <a href="/credentials">Credentials</a> page ({{ creds | selectattr("revoked","equalto",false) | list | length }} active),
+    then register this proxy as an MCP server in <code>~/.openclaw/openclaw.json</code>:</p>
+  <pre class="result">{
+  "mcp": {
+    "servers": {
+      "gmail-proxy": {
+        "url": "https://PROXY_HOST:{{ mcp_port }}/mcp",
+        "transport": "streamable-http",
+        "headers": { "Authorization": "Bearer ${GMAIL_PROXY_TOKEN}" }
+      }
+    }
+  }
+}</pre>
+  <p class="hint">Replace <code>PROXY_HOST</code> with this host's VM-facing address and set
+    <code>GMAIL_PROXY_TOKEN</code> to the issued credential.</p>
+</div>
+{% endblock %}

@@ -1,5 +1,10 @@
 # Runs the proxy OUTSIDE the VM (e.g. on the VM's docker host).
 #
+# Persistence (see README): everything mutable lives in the `proxy-data` volume
+# (credentials, audit log, keys, the encrypted Gmail token, the OAuth client
+# config, kill-switch). `policy.yaml` is a writable bind mount so edits from the
+# admin UI persist to the host file. Nothing else needs mapping.
+#
 # Ports:
 #   8443  MCP endpoint  -> reachable by the OpenClaw VM ONLY. Restrict with a
 #         host firewall / a docker network the VM is on. Do NOT expose publicly.
@@ -11,14 +16,19 @@ services:
     image: openclaw-gmail-proxy:latest
     restart: unless-stopped
     environment:
-      GMAIL_BACKEND: google
+      GMAIL_BACKEND: google            # "mock" for a demo with sample data
       POLICY_PATH: /app/policy.yaml
       DATA_DIR: /data
-      TOKEN_STORE_PATH: /secrets/token.json
-      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:?set in .env}
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?set in .env}
-      GOOGLE_CLIENT_SECRET_FILE: /secrets/client_secret
+      TOKEN_STORE_PATH: /data/token.json
+      # Required: the admin-UI login token (or configure Google login below).
       ADMIN_TOKEN: ${ADMIN_TOKEN:?set in .env}
+      # Optional: an out-of-band token-encryption key (stronger than the default,
+      # which auto-generates and persists a key under /data). Generate with:
+      #   python -c "from cryptography.fernet import Fernet;print(Fernet.generate_key().decode())"
+      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:-}
+      # The Gmail OAuth client (id/secret) is entered on the admin Setup page and
+      # stored in /data — no env vars needed. You can pre-seed the id here:
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       # Optional "Sign in with Google" for the admin UI (restricted to the proxied account).
       ADMIN_OAUTH_CLIENT_ID: ${ADMIN_OAUTH_CLIENT_ID:-}
       ADMIN_OAUTH_CLIENT_SECRET: ${ADMIN_OAUTH_CLIENT_SECRET:-}
@@ -29,9 +39,8 @@ services:
       ADMIN_HOST: 0.0.0.0
       ADMIN_PORT: "8081"
     volumes:
-      - proxy-data:/data
-      - ./secrets:/secrets:ro
-      - ./policy.yaml:/app/policy.yaml:ro
+      - proxy-data:/data                     # all mutable state (persist this)
+      - ./policy.yaml:/app/policy.yaml        # writable: the admin UI edits it
     ports:
       # MCP: change 0.0.0.0 to the host IP on the VM-facing network in production.
       - "8443:8443"
