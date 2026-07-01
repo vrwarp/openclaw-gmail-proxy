@@ -132,9 +132,10 @@ is available.
 
 - **CI** (`.github/workflows/ci.yml`) runs ruff + the full pytest suite on
   Python 3.11 and 3.12 for every push and pull request.
-- **Docker** (`.github/workflows/docker.yml`) builds the image on every push and
-  PR, and **publishes on pushes/merges and tags** (tagged by branch, `sha`,
-  semver, and `latest` on the default branch):
+- **Docker** (`.github/workflows/docker.yml`) does a **dry-run build on pull
+  requests** (no push, to validate the Dockerfile) and **publishes only on merge
+  to `main` and on release tags** — so a feature-branch commit can never push an
+  image (tagged by branch, `sha`, semver, and `latest` on the default branch):
   - **GHCR** always: `ghcr.io/vrwarp/openclaw-gmail-proxy`.
   - **Docker Hub** when configured: `docker.io/<DOCKERHUB_USERNAME>/openclaw-gmail-proxy`.
     Add two repo secrets to enable it — **`DOCKERHUB_USERNAME`** and a

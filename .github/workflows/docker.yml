@@ -1,9 +1,11 @@
 name: Docker
 
 on:
+  # Publish only on merge to the default branch and on release tags.
   push:
-    branches: ["**"]
+    branches: [main]
     tags: ["v*"]
+  # Pull requests do a dry-run build (no push) to validate the Dockerfile.
   pull_request:
 
 concurrency:
@@ -28,7 +30,7 @@ jobs:
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v3
 
-      # Publish on push/merge and tags; PRs only build (no push).
+      # Registry logins + push only run on merge/tags (not pull_request).
       - name: Log in to GHCR
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
