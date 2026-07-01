@@ -24,7 +24,7 @@ from .google_auth import GoogleOIDC, new_pkce, random_token
 _HERE = Path(__file__).parent
 _ALL_CATEGORY_NAMES = ["primary", "social", "promotions", "updates", "forums"]
 
-# Argument specs for the dry-run playground (tool -> [(field, kind)]).
+# Argument specs for the tool tester (tool -> [(field, kind)]).
 _PLAYGROUND = {
     "gmail_list_messages": [("category", "text"), ("unread_only", "bool"),
                             ("from", "text"), ("subject", "text"), ("newer_than", "text"),
@@ -313,7 +313,11 @@ def build_admin_app(ctx: AppContext) -> FastAPI:
         except Exception:  # noqa: BLE001
             return back("could not obtain a refresh token — revoke prior access and retry")
         ctx.connect_gmail(token)
-        resp = RedirectResponse("/setup?connected=1", 303)
+        # The token exchange can succeed while the first real Gmail call fails
+        # (e.g. the Gmail API is not enabled). Verify before claiming success so
+        # the actual reason is shown instead of a silent "not connected".
+        to = "/setup?connected=1" if ctx.gmail_status().get("connected") else "/setup"
+        resp = RedirectResponse(to, 303)
         resp.delete_cookie("gmail_tx")
         return resp
 
@@ -356,12 +360,16 @@ def build_admin_app(ctx: AppContext) -> FastAPI:
                 result = {"id": id, "error": "message id not found"}
         return page(request, "explain.html", result=result, id=id or "")
 
-    # --- dry-run playground ----------------------------------------------
+    # --- tool tester -----------------------------------------------------
     @app.get("/playground", response_class=HTMLResponse)
-    def playground_view(request: Request):
+    def playground_view(request: Request, tool: str | None = None):
         if (r := guard(request)):
             return r
-        return page(request, "playground.html", specs=_PLAYGROUND, result=None, tool=None)
+        # Selecting a tool just reveals its argument fields (no run) — the tool
+        # only executes when the Run button POSTs.
+        if tool not in _PLAYGROUND:
+            tool = None
+        return page(request, "playground.html", specs=_PLAYGROUND, result=None, tool=tool)
 
     @app.post("/playground", response_class=HTMLResponse)
     async def playground_run(request: Request):
@@ -381,7 +389,7 @@ def build_admin_app(ctx: AppContext) -> FastAPI:
             elif raw:
                 args[field] = raw
         try:
-            result = tools.call_tool(ctx, "admin:dryrun", ctx.policy.mode, tool, args,
+            result = tools.call_tool(ctx, "admin:tester", ctx.policy.mode, tool, args,
                                      enforce_runtime=False)
         except errors.ProxyError as e:
             result = {"error": e.to_public(), "detail": e.detail}

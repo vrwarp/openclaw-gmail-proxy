@@ -26,7 +26,7 @@ that runs in Docker outside the VM and:
   (`policy/engine.py`), an injection-proof query builder (`policy/query.py`), and
   label-mutation guards (`policy/mutation.py`).
 - Ships an **admin web UI** (config editor, audit-log viewer, policy-explain,
-  dry-run tester, credential issue/rotate/revoke, kill-switch) bound to
+  tool tester, credential issue/rotate/revoke, kill-switch) bound to
   localhost, never reachable from the VM.
 - Records a hash-chained audit log; supports per-credential rate limits and a
   global kill-switch.

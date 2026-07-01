@@ -22,6 +22,16 @@
     </form>
   {% else %}
     <p><span class="pill danger">● not connected</span></p>
+    {% if status.error %}
+      <div class="banner danger" style="margin:8px 0">
+        {% if status.error_hint %}<p style="margin:0 0 6px"><strong>{{ status.error_hint }}</strong>
+          {% if 'not enabled' in status.error_hint %}
+            <a href="https://console.cloud.google.com/apis/library/gmail.googleapis.com" target="_blank" rel="noopener">Enable the Gmail API →</a>
+          {% endif %}</p>{% endif %}
+        <details><summary class="hint">Google API error</summary>
+          <pre class="result" style="white-space:pre-wrap;margin:6px 0 0">{{ status.error }}</pre></details>
+      </div>
+    {% endif %}
     {% if status.client_configured %}
       <p>Click connect, approve access in Google, and you're done. Requests the
          <code>{{ 'gmail.readonly' if policy is defined and policy.mode=='read_only' else 'gmail.modify' }}</code> scope (offline).</p>

@@ -134,6 +134,8 @@ class AppContext:
             "connected": False,
             "email": None,
             "scopes": [],
+            "error": None,
+            "error_hint": None,
         }
         if demo:
             status.update(connected=True, email="(mock backend)")
@@ -144,9 +146,29 @@ class AppContext:
                 status.update(connected=True, email=profile.get("emailAddress"))
                 tok = self.token_store().load()
                 status["scopes"] = tok.get("scopes", [])
-            except Exception:  # noqa: BLE001 - not connected / transient
-                pass
+            except Exception as e:  # noqa: BLE001 - surface, don't hide
+                msg = str(e)
+                status["error"] = msg[:400]
+                status["error_hint"] = _gmail_error_hint(msg)
         return status
+
+
+def _gmail_error_hint(msg: str) -> str:
+    """Turn a raw Gmail API error into an actionable one-liner for the UI."""
+    low = msg.lower()
+    if ("accessnotconfigured" in low or "has not been used in project" in low
+            or ("gmail api" in low and "disabl" in low)):
+        return ("The Gmail API is not enabled for this OAuth client's Google Cloud "
+                "project. Open the API Library, enable “Gmail API”, wait a minute, "
+                "then click Connect Gmail again.")
+    if "invalid_grant" in low or "expired or revoked" in low:
+        return "The Google authorization expired or was revoked — click Connect Gmail to re-authorize."
+    if "insufficient" in low and "scope" in low:
+        return "The granted scopes are insufficient — reconnect and approve the requested Gmail access."
+    if "access_denied" in low or "accessdenied" in low:
+        return ("Google denied access. If the app is in “Testing”, add your account as a test user on "
+                "the OAuth consent screen, and confirm the Gmail API is enabled.")
+    return ""
 
 
 def _resolve_client_creds(settings: Settings, data: Path) -> tuple[str | None, str | None]:
