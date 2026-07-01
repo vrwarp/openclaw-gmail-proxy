@@ -5,7 +5,6 @@ screenshots to docs/screenshots when RUN_SCREENSHOTS=1.
 """
 
 import glob
-import os
 import threading
 import time
 

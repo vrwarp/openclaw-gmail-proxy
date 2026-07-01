@@ -7,7 +7,6 @@ Not exercised by the credential-free test run, but wired for production.
 from __future__ import annotations
 
 import base64
-import json
 from datetime import datetime, timezone
 
 from ..models import Attachment, Label, Message, Thread

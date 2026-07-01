@@ -16,7 +16,6 @@ from ..categories import (
     CATEGORY_PROMOTIONS,
     CATEGORY_SOCIAL,
     CATEGORY_UPDATES,
-    NAME_BY_CATEGORY_ID,
     SEARCH_TOKEN_BY_CATEGORY_ID,
 )
 from ..models import Attachment, Label, Message, Thread

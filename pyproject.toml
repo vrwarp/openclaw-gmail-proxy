@@ -38,3 +38,11 @@ where = ["src"]
 testpaths = ["tests"]
 asyncio_mode = "auto"
 filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+# E741 (ambiguous name `l`) and E702 (semicolons) are fine in this codebase.
+ignore = ["E741", "E702"]

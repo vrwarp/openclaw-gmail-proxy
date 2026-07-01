@@ -2,7 +2,6 @@
 
 from collections import Counter
 
-import pytest
 
 from gmail_proxy.cache import CachingGmailBackend
 from gmail_proxy.config import CacheConfig, ContentCache

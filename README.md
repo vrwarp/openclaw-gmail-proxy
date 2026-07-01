@@ -1,5 +1,8 @@
 # OpenClaw Gmail Proxy
 
+[![CI](https://github.com/vrwarp/openclaw-gmail-proxy/actions/workflows/ci.yml/badge.svg)](https://github.com/vrwarp/openclaw-gmail-proxy/actions/workflows/ci.yml)
+[![Docker](https://github.com/vrwarp/openclaw-gmail-proxy/actions/workflows/docker.yml/badge.svg)](https://github.com/vrwarp/openclaw-gmail-proxy/actions/workflows/docker.yml)
+
 A **category-scoped Gmail proxy** for [OpenClaw](https://openclaw.ai/). It lets
 you give an autonomous OpenClaw agent access to **only** the Gmail categories
 you choose (Promotions, Social, Updates, Forums, and/or Primary) — and nothing
@@ -122,6 +125,17 @@ pytest            # 80+ tests: policy engine, query sanitizer, mutation guards,
 
 The Playwright admin e2e test (`tests/e2e/`) skips automatically if no Chromium
 is available.
+
+## CI / images
+
+- **CI** (`.github/workflows/ci.yml`) runs ruff + the full pytest suite on
+  Python 3.11 and 3.12 for every push and pull request.
+- **Docker** (`.github/workflows/docker.yml`) builds the image on every push and
+  PR, and **publishes to GHCR** on pushes/merges and tags:
+  `ghcr.io/vrwarp/openclaw-gmail-proxy` (tagged by branch, `sha`, semver, and
+  `latest` on the default branch). To run the published image instead of
+  building locally, set `image: ghcr.io/vrwarp/openclaw-gmail-proxy:latest` in
+  `docker-compose.yml` and drop the `build:` line.
 
 ## Layout
 
