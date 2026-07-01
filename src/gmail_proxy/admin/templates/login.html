@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in · OpenClaw Gmail Proxy</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="login-wrap">
+  <div class="login-card">
+    <h1>🦞 Gmail Proxy admin</h1>
+    <p>Enter the admin token to manage the category-scoped Gmail proxy.</p>
+    {% if error %}<div class="banner danger">{{ error }}</div>{% endif %}
+    <form method="post" action="/login">
+      <div class="field">
+        <label for="token">Admin token</label>
+        <input type="password" id="token" name="token" autofocus autocomplete="current-password">
+      </div>
+      <button class="btn" type="submit" style="width:100%">Sign in</button>
+    </form>
+  </div>
+</div>
+</body>
+</html>

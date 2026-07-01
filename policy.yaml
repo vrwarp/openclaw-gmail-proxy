@@ -1,0 +1,38 @@
+# OpenClaw Gmail Proxy — access policy (the single source of truth).
+# Unknown keys are REJECTED at load: a typo can never silently widen access.
+version: 1
+
+# read_write permits the configured label mutations (+ trash if enabled);
+# read_only forbids every mutating tool.
+mode: read_write
+
+# Which Gmail categories OpenClaw may see and act on.
+# Default: all five.  NOTE: enabling `primary` effectively grants near
+# full-mailbox read/modify (minus permanent delete) — narrow this if you only
+# want promotional/social triage.
+allowed_categories: [primary, social, promotions, updates, forums]
+
+# System labels the agent may toggle.  INBOX => archive/unarchive is allowed;
+# UNREAD => mark read/unread; STARRED => star.  CATEGORY_*/SPAM/TRASH can NEVER
+# be listed here (they are rejected at load) — that is what blocks scope
+# smuggling.
+mutable_labels: [UNREAD, STARRED, INBOX]
+
+# Allow adding/removing arbitrary user (non-system) labels.
+allow_user_label_mutations: true
+
+# Destructive / broadening capabilities, off by default.
+allow_trash: false
+allow_attachments: false
+
+# Only these headers are ever returned; all other recipients are dropped.
+return_headers: [From, Subject, Date]
+# Replace the From address with a stable per-run token instead of the raw addr.
+redact_sender_address: false
+
+max_body_bytes: 65536
+max_results_cap: 50
+
+rate_limits:
+  per_minute: 60
+  per_day: 5000

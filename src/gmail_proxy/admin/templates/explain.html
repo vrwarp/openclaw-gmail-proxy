@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Policy explain{% endblock %}
+{% block content %}
+<h1>Policy explain</h1>
+<p class="sub">Check whether a specific message id is in scope, and why.</p>
+
+<form class="panel" method="get" action="/explain">
+  <div class="row" style="align-items:flex-end">
+    <div class="field" style="flex:1"><label>Message id</label>
+      <input type="text" name="id" value="{{ id }}" placeholder="e.g. m001"></div>
+    <div class="field" style="flex:0"><button class="btn" type="submit">Explain</button></div>
+  </div>
+</form>
+
+{% if result %}
+<div class="panel">
+  {% if result.error %}
+    <div class="banner danger">{{ result.error }}</div>
+  {% else %}
+    <p style="font-size:16px">
+      {% if result.eligible %}<span class="allow">● ELIGIBLE</span>{% else %}<span class="deny">● NOT ELIGIBLE</span>{% endif %}
+      &nbsp; <span class="mono">{{ result.id }}</span>
+    </p>
+    <p><strong>Subject:</strong> {{ result.subject }}</p>
+    <p><strong>Verdict:</strong> {{ result.reason }}</p>
+    <p><strong>Labels:</strong> {% for l in result.labels %}<code>{{ l }}</code> {% endfor %}</p>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Configuration{% endblock %}
+{% block content %}
+<h1>Configuration</h1>
+<p class="sub">What OpenClaw is allowed to see and do. Saved to <code>policy.yaml</code> and reloaded live.</p>
+
+{% if saved %}<div class="banner ok">Policy saved and reloaded.</div>{% endif %}
+{% if error %}<div class="banner danger">Rejected: {{ error }} — nothing was changed.</div>{% endif %}
+
+<form class="panel" method="post" action="/config">
+  <div class="field">
+    <label>Allowed categories</label>
+    <div class="checks">
+      {% for c in all_categories %}
+      <label class="check"><input type="checkbox" name="allowed_categories" value="{{ c }}"
+        {{ 'checked' if c in policy.allowed_categories }}> {{ c }}</label>
+      {% endfor %}
+    </div>
+    <div class="hint">Enabling <strong>primary</strong> effectively grants near-full-mailbox read/modify (minus permanent delete).</div>
+  </div>
+
+  <div class="row">
+    <div class="field">
+      <label>Mode</label>
+      <select name="mode">
+        <option value="read_write" {{ 'selected' if policy.mode=='read_write' }}>read_write</option>
+        <option value="read_only" {{ 'selected' if policy.mode=='read_only' }}>read_only</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Mutable system labels</label>
+      <input type="text" name="mutable_labels" value="{{ policy.mutable_labels | join(', ') }}">
+      <div class="hint">Comma-separated. INBOX enables archive; UNREAD enables mark-read. CATEGORY_*/SPAM/TRASH always rejected.</div>
+    </div>
+  </div>
+
+  <div class="field">
+    <label>Toggles</label>
+    <div class="checks">
+      <label class="check"><input type="checkbox" name="allow_user_label_mutations" {{ 'checked' if policy.allow_user_label_mutations }}> allow user-label mutations</label>
+      <label class="check"><input type="checkbox" name="allow_trash" {{ 'checked' if policy.allow_trash }}> allow trash</label>
+      <label class="check"><input type="checkbox" name="allow_attachments" {{ 'checked' if policy.allow_attachments }}> allow attachments</label>
+      <label class="check"><input type="checkbox" name="redact_sender_address" {{ 'checked' if policy.redact_sender_address }}> redact sender addresses</label>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="field"><label>Max body bytes</label><input type="number" name="max_body_bytes" value="{{ policy.max_body_bytes }}"></div>
+    <div class="field"><label>Max results cap</label><input type="number" name="max_results_cap" value="{{ policy.max_results_cap }}"></div>
+    <div class="field"><label>Rate / minute</label><input type="number" name="per_minute" value="{{ policy.rate_limits.per_minute }}"></div>
+    <div class="field"><label>Rate / day</label><input type="number" name="per_day" value="{{ policy.rate_limits.per_day }}"></div>
+  </div>
+
+  <button class="btn" type="submit">Save & reload</button>
+</form>
+
+<h2>Current policy.yaml</h2>
+<pre class="result">{{ raw_yaml }}</pre>
+{% endblock %}

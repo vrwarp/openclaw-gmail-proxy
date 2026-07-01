@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Audit log{% endblock %}
+{% block content %}
+<h1>Audit log</h1>
+<p class="sub">Every tool call — allowed or denied — with the calling identity, decision, and reason.
+  Chain integrity: {% if chain_ok %}<span class="allow">✓ intact</span>{% else %}<span class="deny">✗ tampered</span>{% endif %}.</p>
+
+<div class="panel" style="padding:12px 16px">
+  <a class="btn sm {{ 'ghost' if decision }}" href="/audit">All</a>
+  <a class="btn sm {{ 'ghost' if decision!='allow' }}" href="/audit?decision=allow">Allowed</a>
+  <a class="btn sm {{ 'ghost' if decision!='deny' }}" href="/audit?decision=deny">Denied</a>
+</div>
+
+<table>
+  <tr><th>Time (UTC)</th><th>Actor</th><th>Tool</th><th>Decision</th><th>Reason</th><th>Message ids</th></tr>
+  {% for r in rows %}
+  <tr>
+    <td class="mono">{{ r.ts[:19] }}</td>
+    <td class="mono">{{ r.actor }}</td>
+    <td class="mono">{{ r.tool }}</td>
+    <td>{% if r.decision=='allow' %}<span class="allow">allow</span>{% else %}<span class="deny">deny</span>{% endif %}</td>
+    <td class="mono">{{ r.reason or "—" }}</td>
+    <td class="mono">{{ r.message_ids | join(", ") if r.message_ids else "—" }}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="6" class="hint">No matching entries.</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

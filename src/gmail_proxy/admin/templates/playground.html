@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Dry-run tester{% endblock %}
+{% block content %}
+<h1>Dry-run tool tester</h1>
+<p class="sub">Invoke a tool exactly as OpenClaw would (full policy enforcement, no rate-limit/freeze) and inspect the result.</p>
+
+<form class="panel" method="post" action="/playground" id="pg">
+  <div class="field">
+    <label>Tool</label>
+    <select name="tool" onchange="document.getElementById('pg').submit()">
+      <option value="">— choose a tool —</option>
+      {% for name in specs %}<option value="{{ name }}" {{ 'selected' if name==tool }}>{{ name }}</option>{% endfor %}
+    </select>
+  </div>
+  {% if tool %}
+    {% for field, kind in specs[tool] %}
+      <div class="field">
+        <label>{{ field }} <span class="hint">({{ kind }})</span></label>
+        {% if kind == 'bool' %}
+          <label class="check"><input type="checkbox" name="{{ field }}"> {{ field }}</label>
+        {% else %}
+          <input type="text" name="{{ field }}" placeholder="{{ 'comma,separated' if kind=='csv' else kind }}">
+        {% endif %}
+      </div>
+    {% endfor %}
+    <button class="btn" type="submit">Run {{ tool }}</button>
+  {% endif %}
+</form>
+
+{% if result is not none %}
+<h2>Result</h2>
+<pre class="result">{{ result | tojson(indent=2) }}</pre>
+{% endif %}
+{% endblock %}
