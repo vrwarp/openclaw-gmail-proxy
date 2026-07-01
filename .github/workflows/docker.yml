@@ -91,3 +91,9 @@ jobs:
           docker rm -f "$cid" >/dev/null 2>&1 || true
           [ -n "$ok" ] || { echo "::error::image did not become healthy"; exit 1; }
           echo "image healthy"
+
+          # PUID/PGID must remap the runtime user (NAS bind-mount support).
+          uid=$(docker run --rm -e PUID=1026 -e PGID=100 --entrypoint /usr/local/bin/docker-entrypoint.sh \
+                  ogp-smoke:ci id -u)
+          echo "remapped uid=$uid"
+          [ "$uid" = "1026" ] || { echo "::error::PUID/PGID not honoured (uid=$uid)"; exit 1; }

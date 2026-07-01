@@ -20,6 +20,11 @@ services:
       POLICY_PATH: /app/policy.yaml
       DATA_DIR: /data
       TOKEN_STORE_PATH: /data/token.json
+      # Run the app as a specific host user so a locked-down bind mount (readable
+      # only by that user, e.g. a Synology `docker_user`) still works. Find the
+      # numbers with `id docker_user`. Defaults to 10001 when unset.
+      PUID: ${PUID:-10001}
+      PGID: ${PGID:-10001}
       # Required: the admin-UI login token (or configure Google login below).
       ADMIN_TOKEN: ${ADMIN_TOKEN:?set in .env}
       # Optional: an out-of-band token-encryption key (stronger than the default,
@@ -39,6 +44,9 @@ services:
       ADMIN_HOST: 0.0.0.0
       ADMIN_PORT: "8081"
     volumes:
+      # All mutable state. On a NAS, swap the named volume for a bind mount into
+      # a folder owned by your docker_user (set PUID/PGID above to match):
+      #   - /volume1/docker/openclaw-gmail-proxy/data:/data
       - proxy-data:/data                     # all mutable state (persist this)
       - ./policy.yaml:/app/policy.yaml        # writable: the admin UI edits it
     ports:
