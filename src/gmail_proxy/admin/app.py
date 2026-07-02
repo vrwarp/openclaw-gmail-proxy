@@ -220,6 +220,7 @@ def build_admin_app(ctx: AppContext) -> FastAPI:
             "allowed_labels": [s.strip() for s in form.get("allowed_labels", "").split(",") if s.strip()],
             "blocked_labels": [s.strip() for s in form.get("blocked_labels", "").split(",") if s.strip()],
             "mutable_labels": [s.strip() for s in form.get("mutable_labels", "").split(",") if s.strip()],
+            "mcp_allowed_hosts": [s.strip() for s in form.get("mcp_allowed_hosts", "").split(",") if s.strip()],
             "allow_user_label_mutations": form.get("allow_user_label_mutations") == "on",
             "allow_trash": form.get("allow_trash") == "on",
             "allow_attachments": form.get("allow_attachments") == "on",

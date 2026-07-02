@@ -101,6 +101,12 @@ class Policy(BaseModel):
     max_body_bytes: int = Field(65536, ge=1024)
     max_results_cap: int = Field(50, ge=1, le=500)
 
+    # Host header values the MCP endpoint accepts (DNS-rebinding guard). Empty =
+    # accept any host (the bearer token is the real gate). Entries: a hostname
+    # (matches any port), `host:port` (exact), or `host:*` (any port). localhost
+    # is always allowed. Editable live on the Configuration page.
+    mcp_allowed_hosts: list[str] = Field(default_factory=list)
+
     rate_limits: RateLimits = Field(default_factory=RateLimits)
 
     cache: CacheConfig = Field(default_factory=CacheConfig)
@@ -129,6 +135,11 @@ class Policy(BaseModel):
     @classmethod
     def _clean_blocked_labels(cls, v: list[str]) -> list[str]:
         return [n.strip() for n in v if n.strip()]
+
+    @field_validator("mcp_allowed_hosts")
+    @classmethod
+    def _clean_hosts(cls, v: list[str]) -> list[str]:
+        return [h.strip() for h in v if h.strip()]
 
     @model_validator(mode="after")
     def _scope_and_mutability(self) -> "Policy":
@@ -189,6 +200,14 @@ class Settings(BaseModel):
     admin_host: str = "127.0.0.1"
     admin_port: int = 8081
 
+    # MCP DNS-rebinding protection. The MCP SDK allow-lists the Host header and
+    # by default permits ONLY localhost, so an agent reaching the endpoint by its
+    # VM-facing hostname/IP gets a 421. Since the endpoint is bearer-authenticated
+    # and meant to be reached over the network, host allow-listing is OFF unless
+    # you pin hosts here (comma-separated host[:port]; use `h:*` for any port).
+    mcp_allowed_hosts: str | None = None
+    mcp_allowed_origins: str | None = None
+
     # Admin UI credential (bearer / basic).  Break-glass fallback when Google
     # login is enabled; required otherwise.
     admin_token: str | None = None
@@ -238,6 +257,8 @@ class Settings(BaseModel):
             mcp_port=int(get("MCP_PORT", "8443")),
             admin_host=get("ADMIN_HOST", "127.0.0.1"),
             admin_port=int(get("ADMIN_PORT", "8081")),
+            mcp_allowed_hosts=get("MCP_ALLOWED_HOSTS"),
+            mcp_allowed_origins=get("MCP_ALLOWED_ORIGINS"),
             admin_token=get("ADMIN_TOKEN"),
             admin_oauth_client_id=get("ADMIN_OAUTH_CLIENT_ID"),
             admin_oauth_client_secret=get("ADMIN_OAUTH_CLIENT_SECRET"),

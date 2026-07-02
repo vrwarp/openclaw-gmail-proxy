@@ -76,14 +76,19 @@
   "mcp": {
     "servers": {
       "gmail-proxy": {
-        "url": "https://PROXY_HOST:{{ mcp_port }}/mcp",
+        "url": "http://PROXY_HOST:{{ mcp_port }}/mcp",
         "transport": "streamable-http",
         "headers": { "Authorization": "Bearer ${GMAIL_PROXY_TOKEN}" }
       }
     }
   }
 }</pre>
-  <p class="hint">Replace <code>PROXY_HOST</code> with this host's VM-facing address and set
-    <code>GMAIL_PROXY_TOKEN</code> to the issued credential.</p>
+  <p class="hint">Replace <code>PROXY_HOST</code> (and the port, if you remapped it)
+    with this host's VM-facing address, and set <code>GMAIL_PROXY_TOKEN</code> to the
+    issued credential. The endpoint speaks plain <strong>HTTP</strong> — use
+    <code>https://</code> only if you put a TLS-terminating reverse proxy in front.
+    Any host is accepted by default; to restrict it (or if an agent hits
+    <code>421 Invalid Host header</code>) set <strong>MCP allowed hosts</strong> on the
+    <a href="/config">Configuration</a> page.</p>
 </div>
 {% endblock %}

@@ -8,9 +8,63 @@ resolved identity for the tool handlers via a context variable.
 from __future__ import annotations
 
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 
 from . import errors, tools
 from .context import AppContext
+
+# localhost is always accepted (local tunnels, health probes, testing).
+_ALWAYS_ALLOWED = {"127.0.0.1", "localhost", "::1", "[::1]"}
+
+
+def _split(value: str | None) -> list[str]:
+    return [s.strip() for s in (value or "").split(",") if s.strip()]
+
+
+def effective_allowed_hosts(ctx: AppContext) -> list[str]:
+    """Live MCP Host allow-list: the policy value (UI-editable) takes precedence;
+    the MCP_ALLOWED_HOSTS env var is a fallback. Empty => accept any host."""
+    hosts = list(ctx.policy.mcp_allowed_hosts)
+    if not hosts:
+        hosts = _split(ctx.settings.mcp_allowed_hosts)
+    return hosts
+
+
+def _host_allowed(host_header: str | None, allowed: list[str]) -> bool:
+    """Match a request Host against the allow-list.
+
+    Entry forms: ``*`` (any), ``host`` (any port), ``host:port`` (exact),
+    ``host:*`` (any port). localhost is always allowed.
+    """
+    if not allowed:
+        return True  # allow-list empty => open (bearer token is the gate)
+    if not host_header:
+        return False
+    host = host_header.strip().lower()
+    # Split off a trailing :port (but not the colons inside a bare [::1]).
+    if host.startswith("["):
+        name = host[: host.index("]") + 1] if "]" in host else host
+    else:
+        name = host.rsplit(":", 1)[0] if ":" in host else host
+    if name in _ALWAYS_ALLOWED:
+        return True
+    for entry in allowed:
+        e = entry.strip().lower()
+        if not e:
+            continue
+        if e == "*" or e == host:
+            return True
+        if e.endswith(":*") and (name == e[:-2] or host.startswith(e[:-2] + ":")):
+            return True
+        if ":" not in e and name == e:  # bare hostname matches any port
+            return True
+    return False
+
+
+def _transport_security() -> TransportSecuritySettings:
+    """Disable the SDK's static (localhost-only) Host guard — we enforce the Host
+    allow-list ourselves in HostAllowlistMiddleware so it can be edited live."""
+    return TransportSecuritySettings(enable_dns_rebinding_protection=False)
 
 _INSTRUCTIONS = (
     "Category-scoped Gmail access. You may ONLY see and act on messages in the "
@@ -23,7 +77,8 @@ _INSTRUCTIONS = (
 def build_mcp(ctx: AppContext) -> FastMCP:
     # stateless_http: no persistent per-session state, so there is no cross-request
     # session task to capture a stale identity into.
-    mcp = FastMCP("openclaw-gmail-proxy", instructions=_INSTRUCTIONS, stateless_http=True)
+    mcp = FastMCP("openclaw-gmail-proxy", instructions=_INSTRUCTIONS, stateless_http=True,
+                  transport_security=_transport_security())
 
     def _resolve_actor() -> dict | None:
         """Resolve the credential from THIS request's Authorization header.
@@ -177,7 +232,36 @@ class BearerAuthMiddleware:
         await self.app(scope, receive, send)
 
 
+class HostAllowlistMiddleware:
+    """Reject requests whose Host header isn't allowed by the live policy.
+
+    Reads the allow-list from `ctx` per request, so edits made on the admin
+    Configuration page take effect immediately (no restart). An empty allow-list
+    accepts any host — the bearer token is the real gate.
+    """
+
+    def __init__(self, app, ctx: AppContext) -> None:
+        self.app = app
+        self.ctx = ctx
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        allowed = effective_allowed_hosts(self.ctx)
+        if allowed:
+            headers = {k.decode().lower(): v.decode() for k, v in scope.get("headers", [])}
+            if not _host_allowed(headers.get("host"), allowed):
+                body = b'{"error":{"code":421,"reason":"host_not_allowed"}}'
+                await send({"type": "http.response.start", "status": 421,
+                            "headers": [(b"content-type", b"application/json"),
+                                        (b"content-length", str(len(body)).encode())]})
+                await send({"type": "http.response.body", "body": body})
+                return
+        await self.app(scope, receive, send)
+
+
 def build_mcp_app(ctx: AppContext):
     """Return the auth-wrapped ASGI app for the MCP endpoint."""
     mcp = build_mcp(ctx)
-    return BearerAuthMiddleware(mcp.streamable_http_app(), ctx)
+    app = BearerAuthMiddleware(mcp.streamable_http_app(), ctx)
+    return HostAllowlistMiddleware(app, ctx)  # Host check runs first (outermost)

@@ -61,6 +61,15 @@
     </div>
   </div>
 
+  <div class="field">
+    <label>MCP allowed hosts <span class="hint">(Host header allow-list)</span></label>
+    <input type="text" name="mcp_allowed_hosts" value="{{ policy.mcp_allowed_hosts | join(', ') }}"
+           placeholder="e.g. gmail-proxy.lan, 10.0.0.5:52443">
+    <div class="hint">Comma-separated. <strong>Empty = accept any host</strong> (the bearer token is the gate).
+      Each entry is a hostname (any port), <code>host:port</code> (exact), or <code>host:*</code> (any port);
+      localhost is always allowed. Applied live. Set this if an agent hits <code>421 Invalid Host header</code>.</div>
+  </div>
+
   <div class="row">
     <div class="field"><label>Max body bytes</label><input type="number" name="max_body_bytes" value="{{ policy.max_body_bytes }}"></div>
     <div class="field"><label>Max results cap</label><input type="number" name="max_results_cap" value="{{ policy.max_results_cap }}"></div>

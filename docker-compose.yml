@@ -45,6 +45,11 @@ services:
       MCP_PORT: "8443"
       ADMIN_HOST: 0.0.0.0
       ADMIN_PORT: "8081"
+      # Optional fallback for the MCP Host allow-list (DNS-rebinding protection).
+      # Prefer editing "MCP allowed hosts" on the admin Configuration page (stored
+      # in policy.yaml, applied live). Unset = accept any host (bearer token is the
+      # gate). Example: "gmail-proxy.lan,10.0.0.5:52443".
+      MCP_ALLOWED_HOSTS: ${MCP_ALLOWED_HOSTS:-}
     volumes:
       # All mutable state. On a NAS, swap the named volume for a bind mount into
       # a folder owned by your docker_user (set PUID/PGID above to match):
