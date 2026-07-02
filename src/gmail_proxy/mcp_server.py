@@ -8,9 +8,38 @@ resolved identity for the tool handlers via a context variable.
 from __future__ import annotations
 
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 
 from . import errors, tools
+from .config import Settings
 from .context import AppContext
+
+_LOCAL_HOSTS = ["127.0.0.1:*", "localhost:*", "[::1]:*"]
+
+
+def _split(value: str | None) -> list[str]:
+    return [s.strip() for s in (value or "").split(",") if s.strip()]
+
+
+def transport_security(settings: Settings) -> TransportSecuritySettings:
+    """DNS-rebinding protection for the MCP endpoint.
+
+    The endpoint is reached from the VM by an arbitrary host/IP and is gated by a
+    bearer token, so the MCP SDK's localhost-only Host allow-list would (and did)
+    reject legitimate agents with a 421. Default to protection OFF; enable strict
+    Host validation only when the operator pins hosts via MCP_ALLOWED_HOSTS.
+    """
+    hosts = _split(settings.mcp_allowed_hosts)
+    if not hosts or "*" in hosts:
+        return TransportSecuritySettings(enable_dns_rebinding_protection=False)
+    origins = _split(settings.mcp_allowed_origins)
+    if not origins:  # browsers send Origin; server-to-server MCP calls omit it
+        origins = [f"{scheme}://{h}" for h in hosts for scheme in ("http", "https")]
+    return TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=hosts + _LOCAL_HOSTS,
+        allowed_origins=origins,
+    )
 
 _INSTRUCTIONS = (
     "Category-scoped Gmail access. You may ONLY see and act on messages in the "
@@ -23,7 +52,8 @@ _INSTRUCTIONS = (
 def build_mcp(ctx: AppContext) -> FastMCP:
     # stateless_http: no persistent per-session state, so there is no cross-request
     # session task to capture a stale identity into.
-    mcp = FastMCP("openclaw-gmail-proxy", instructions=_INSTRUCTIONS, stateless_http=True)
+    mcp = FastMCP("openclaw-gmail-proxy", instructions=_INSTRUCTIONS, stateless_http=True,
+                  transport_security=transport_security(ctx.settings))
 
     def _resolve_actor() -> dict | None:
         """Resolve the credential from THIS request's Authorization header.

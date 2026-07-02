@@ -189,6 +189,14 @@ class Settings(BaseModel):
     admin_host: str = "127.0.0.1"
     admin_port: int = 8081
 
+    # MCP DNS-rebinding protection. The MCP SDK allow-lists the Host header and
+    # by default permits ONLY localhost, so an agent reaching the endpoint by its
+    # VM-facing hostname/IP gets a 421. Since the endpoint is bearer-authenticated
+    # and meant to be reached over the network, host allow-listing is OFF unless
+    # you pin hosts here (comma-separated host[:port]; use `h:*` for any port).
+    mcp_allowed_hosts: str | None = None
+    mcp_allowed_origins: str | None = None
+
     # Admin UI credential (bearer / basic).  Break-glass fallback when Google
     # login is enabled; required otherwise.
     admin_token: str | None = None
@@ -238,6 +246,8 @@ class Settings(BaseModel):
             mcp_port=int(get("MCP_PORT", "8443")),
             admin_host=get("ADMIN_HOST", "127.0.0.1"),
             admin_port=int(get("ADMIN_PORT", "8081")),
+            mcp_allowed_hosts=get("MCP_ALLOWED_HOSTS"),
+            mcp_allowed_origins=get("MCP_ALLOWED_ORIGINS"),
             admin_token=get("ADMIN_TOKEN"),
             admin_oauth_client_id=get("ADMIN_OAUTH_CLIENT_ID"),
             admin_oauth_client_secret=get("ADMIN_OAUTH_CLIENT_SECRET"),

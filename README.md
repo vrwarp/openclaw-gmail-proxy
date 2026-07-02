@@ -112,8 +112,16 @@ The **entire Gmail bootstrap happens in the admin UI** — no CLI, no
 
 > **Network:** keep the MCP port (`8443`) reachable only from the VM (host
 > firewall / private docker network); keep the admin UI (`8081`) on `127.0.0.1`
-> and reach it via an SSH tunnel. mTLS is recommended over bearer tokens in
-> production.
+> and reach it via an SSH tunnel.
+>
+> **MCP endpoint is plain HTTP.** Register it as `http://PROXY_HOST:PORT/mcp`
+> (`https://` only if you front it with a TLS-terminating reverse proxy). The MCP
+> SDK's DNS-rebinding guard allow-lists the `Host` header and by default permits
+> only localhost — so an agent connecting by hostname/IP would get a
+> **`421 Invalid Host header`**. This proxy therefore turns that guard **off** by
+> default (the endpoint is bearer-authenticated); set `MCP_ALLOWED_HOSTS`
+> (comma-separated `host[:port]`, `host:*` for any port) to re-enable strict
+> `Host` validation.
 >
 > **Advanced:** a CLI alternative,
 > [`scripts/oauth_bootstrap.py`](scripts/oauth_bootstrap.py), can mint the token

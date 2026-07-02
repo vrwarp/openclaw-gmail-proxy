@@ -27,7 +27,13 @@ async def _serve(settings: Settings) -> None:
     admin_server = uvicorn.Server(
         uvicorn.Config(admin_app, host=settings.admin_host, port=settings.admin_port, log_level="info")
     )
-    print(f"MCP   endpoint : http://{settings.mcp_host}:{settings.mcp_port}/mcp")
+    print(f"MCP   endpoint : http://{settings.mcp_host}:{settings.mcp_port}/mcp"
+          "  (plain HTTP — register with http://, or front with a TLS proxy for https)")
+    if settings.mcp_allowed_hosts:
+        print(f"MCP Host allow-list: {settings.mcp_allowed_hosts} (+ localhost)")
+    else:
+        print("MCP Host allow-list: OFF — any Host accepted (bearer token required). "
+              "Set MCP_ALLOWED_HOSTS to restrict.")
     print(f"Admin UI       : http://{settings.admin_host}:{settings.admin_port}/")
     if ctx.admin_token_generated:
         bar = "=" * 72

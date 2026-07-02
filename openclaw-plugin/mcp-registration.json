@@ -1,19 +1,17 @@
 {
   "//": "Add this to ~/.openclaw/openclaw.json (merge into the existing objects).",
-  "//1": "The URL is the proxy host reachable from the VM. Keep the port private to the VM<->host network; never expose it publicly.",
+  "//1": "The URL is the proxy host reachable from the VM (use the host-mapped port). Keep the port private to the VM<->host network; never expose it publicly.",
   "//2": "GMAIL_PROXY_TOKEN is the per-agent bearer token issued from the proxy admin UI; store it as an OpenClaw secret, not in plaintext.",
+  "//3": "The proxy serves plain HTTP. For https, front it with a TLS-terminating reverse proxy, then use an https:// URL plus sslVerify/mTLS.",
+  "//4": "If the agent gets 421 'Invalid Host header', set MCP_ALLOWED_HOSTS on the proxy to the host it connects with (or leave it unset to allow any host).",
   "mcp": {
     "servers": {
       "gmail-proxy": {
-        "url": "https://PROXY_HOST:8443/mcp",
+        "url": "http://PROXY_HOST:8443/mcp",
         "transport": "streamable-http",
         "headers": {
           "Authorization": "Bearer ${GMAIL_PROXY_TOKEN}"
-        },
-        "sslVerify": true,
-        "//clientCert": "Recommended in production: use mTLS instead of a bearer token",
-        "//clientCertExample": "/etc/openclaw/gmail-proxy-client.crt",
-        "//clientKeyExample": "/etc/openclaw/gmail-proxy-client.key"
+        }
       }
     }
   },
