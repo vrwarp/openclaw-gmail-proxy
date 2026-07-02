@@ -101,6 +101,12 @@ class Policy(BaseModel):
     max_body_bytes: int = Field(65536, ge=1024)
     max_results_cap: int = Field(50, ge=1, le=500)
 
+    # Host header values the MCP endpoint accepts (DNS-rebinding guard). Empty =
+    # accept any host (the bearer token is the real gate). Entries: a hostname
+    # (matches any port), `host:port` (exact), or `host:*` (any port). localhost
+    # is always allowed. Editable live on the Configuration page.
+    mcp_allowed_hosts: list[str] = Field(default_factory=list)
+
     rate_limits: RateLimits = Field(default_factory=RateLimits)
 
     cache: CacheConfig = Field(default_factory=CacheConfig)
@@ -129,6 +135,11 @@ class Policy(BaseModel):
     @classmethod
     def _clean_blocked_labels(cls, v: list[str]) -> list[str]:
         return [n.strip() for n in v if n.strip()]
+
+    @field_validator("mcp_allowed_hosts")
+    @classmethod
+    def _clean_hosts(cls, v: list[str]) -> list[str]:
+        return [h.strip() for h in v if h.strip()]
 
     @model_validator(mode="after")
     def _scope_and_mutability(self) -> "Policy":

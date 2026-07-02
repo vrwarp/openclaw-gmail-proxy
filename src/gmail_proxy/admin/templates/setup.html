@@ -87,7 +87,8 @@
     with this host's VM-facing address, and set <code>GMAIL_PROXY_TOKEN</code> to the
     issued credential. The endpoint speaks plain <strong>HTTP</strong> — use
     <code>https://</code> only if you put a TLS-terminating reverse proxy in front.
-    If the agent gets a <code>421 Invalid Host header</code>, set
-    <code>MCP_ALLOWED_HOSTS</code> to that host (or leave it unset to allow any).</p>
+    Any host is accepted by default; to restrict it (or if an agent hits
+    <code>421 Invalid Host header</code>) set <strong>MCP allowed hosts</strong> on the
+    <a href="/config">Configuration</a> page.</p>
 </div>
 {% endblock %}

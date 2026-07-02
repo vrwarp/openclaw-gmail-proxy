@@ -52,6 +52,18 @@ def test_config_save_reloads_policy(client, ctx):
     assert ctx.policy.allowed_categories == ["promotions"]
 
 
+def test_config_saves_mcp_allowed_hosts(client, ctx):
+    _login(client)
+    r = client.post("/config", data={
+        "mode": "read_write", "allowed_categories": ["promotions"],
+        "mcp_allowed_hosts": "gmail-proxy.lan, 10.0.0.5:52443",
+        "mutable_labels": "UNREAD", "max_body_bytes": "1024", "max_results_cap": "10",
+        "per_minute": "30", "per_day": "1000",
+    }, follow_redirects=False)
+    assert r.status_code == 303
+    assert ctx.policy.mcp_allowed_hosts == ["gmail-proxy.lan", "10.0.0.5:52443"]  # live reload
+
+
 def test_config_rejects_invalid(client, ctx):
     _login(client)
     r = client.post("/config", data={

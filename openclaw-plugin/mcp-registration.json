@@ -3,7 +3,7 @@
   "//1": "The URL is the proxy host reachable from the VM (use the host-mapped port). Keep the port private to the VM<->host network; never expose it publicly.",
   "//2": "GMAIL_PROXY_TOKEN is the per-agent bearer token issued from the proxy admin UI; store it as an OpenClaw secret, not in plaintext.",
   "//3": "The proxy serves plain HTTP. For https, front it with a TLS-terminating reverse proxy, then use an https:// URL plus sslVerify/mTLS.",
-  "//4": "If the agent gets 421 'Invalid Host header', set MCP_ALLOWED_HOSTS on the proxy to the host it connects with (or leave it unset to allow any host).",
+  "//4": "If the agent gets 421 'Invalid Host header', set 'MCP allowed hosts' on the proxy's admin Configuration page to the host it connects with (any host is allowed by default).",
   "mcp": {
     "servers": {
       "gmail-proxy": {

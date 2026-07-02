@@ -118,10 +118,12 @@ The **entire Gmail bootstrap happens in the admin UI** — no CLI, no
 > (`https://` only if you front it with a TLS-terminating reverse proxy). The MCP
 > SDK's DNS-rebinding guard allow-lists the `Host` header and by default permits
 > only localhost — so an agent connecting by hostname/IP would get a
-> **`421 Invalid Host header`**. This proxy therefore turns that guard **off** by
-> default (the endpoint is bearer-authenticated); set `MCP_ALLOWED_HOSTS`
-> (comma-separated `host[:port]`, `host:*` for any port) to re-enable strict
-> `Host` validation.
+> **`421 Invalid Host header`**. This proxy therefore accepts **any** host by
+> default (the endpoint is bearer-authenticated). To lock it down, set the
+> **MCP allowed hosts** on the admin **Configuration** page (persisted to
+> `policy.yaml` under `mcp_allowed_hosts`, applied live; the `MCP_ALLOWED_HOSTS`
+> env var is a fallback). Entries: a hostname (any port), `host:port`, or
+> `host:*`; localhost is always allowed.
 >
 > **Advanced:** a CLI alternative,
 > [`scripts/oauth_bootstrap.py`](scripts/oauth_bootstrap.py), can mint the token
