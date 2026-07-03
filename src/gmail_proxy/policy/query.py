@@ -22,7 +22,8 @@ from ..categories import SEARCH_TOKEN_BY_CATEGORY_ID, category_id_for_name
 # Operators the builder itself may emit.  A positive re-scan of the assembled
 # query rejects any colon-operator not in this set (including future Gmail ops).
 _ALLOWED_OPERATORS: frozenset[str] = frozenset(
-    {"category", "label", "from", "subject", "after", "before", "newer_than", "older_than", "is"}
+    {"category", "label", "from", "subject", "after", "before", "newer_than", "older_than",
+     "is", "in"}
 )
 
 
@@ -79,12 +80,16 @@ def build_query(
     before: str | None = None,
     newer_than: str | None = None,
     older_than: str | None = None,
+    inbox_only: bool = True,
 ) -> str:
     """Assemble a scoped, sanitized Gmail ``q``.
 
     If ``category`` is given it must be within the allowed set and scopes to just
     that category (no labels).  Otherwise the query scopes to the union of allowed
     categories OR the allowed labels.
+
+    ``inbox_only`` (default) restricts to messages still in the inbox
+    (``in:inbox``); pass ``False`` to include archived messages too.
     """
     # --- scope group (categories OR allowed labels) -----------------------
     if category is not None:
@@ -128,6 +133,12 @@ def build_query(
     blocked_tokens = sorted(f"-label:{label_search_token(n)}" for n in blocked_label_names)
     if blocked_tokens:
         q = q + " " + " ".join(blocked_tokens)
+
+    # Inbox scope: a proxy-chosen literal, AND-ed on so archived mail is excluded
+    # by default. `in:inbox` uses the (allowlisted) `in` operator and does not
+    # touch the category/label scope invariant.
+    if inbox_only:
+        q = q + " in:inbox"
 
     _assert_scoped(q, scope_ids, label_names, list(blocked_label_names))
     return q

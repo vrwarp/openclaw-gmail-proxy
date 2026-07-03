@@ -11,12 +11,16 @@ ALLOWED = {CATEGORY_PROMOTIONS, CATEGORY_SOCIAL}
 
 def test_scopes_to_all_allowed_when_no_category():
     q = build_query(ALLOWED)
-    assert q == "(category:promotions OR category:social)"
+    assert q == "(category:promotions OR category:social) in:inbox"
 
 
 def test_single_category_scope():
     q = build_query(ALLOWED, category="promotions")
-    assert q == "(category:promotions)"
+    assert q == "(category:promotions) in:inbox"
+
+
+def test_include_archived_drops_inbox_filter():
+    assert build_query(ALLOWED, category="promotions", inbox_only=False) == "(category:promotions)"
 
 
 def test_typed_params_are_field_bound_and_quoted():
@@ -66,4 +70,4 @@ def test_assembled_query_only_contains_allowlisted_operators():
     q = build_query(ALLOWED, category="promotions", unread_only=True, newer_than="1m")
     import re
     ops = set(re.findall(r"([A-Za-z_]+):", q))
-    assert ops <= {"category", "is", "newer_than", "from", "subject", "after", "before"}
+    assert ops <= {"category", "is", "in", "newer_than", "from", "subject", "after", "before"}

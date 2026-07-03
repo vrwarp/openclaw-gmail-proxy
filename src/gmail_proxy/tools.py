@@ -91,6 +91,7 @@ def _require_eligible(ctx: AppContext, message_id: str):
 # --- handlers -------------------------------------------------------------
 
 def _h_list(ctx, mode, args):
+    inbox_only = not bool(args.get("include_archived", False))
     q = build_query(
         _allowed_ids(ctx),
         category=args.get("category"),
@@ -103,6 +104,7 @@ def _h_list(ctx, mode, args):
         before=args.get("before"),
         newer_than=args.get("newer_than"),
         older_than=args.get("older_than"),
+        inbox_only=inbox_only,
     )
     cap = ctx.policy.max_results_cap
     max_results = min(int(args.get("max_results", 25)), cap)
@@ -119,7 +121,8 @@ def _h_list(ctx, mode, args):
         summaries.append(output.format_summary(meta, ctx.policy, ctx.sender_salt))
         seen_ids.append(mid)
     result = {"messages": summaries, "page_token": next_token,
-              "_control": {"count": len(summaries), "scoped_query": True}}
+              "_control": {"count": len(summaries), "scoped_query": True,
+                           "archived_included": not inbox_only}}
     return result, seen_ids
 
 

@@ -83,6 +83,10 @@ def minimize_body(msg: Message, policy: Policy) -> tuple[dict, dict]:
 def format_summary(msg: Message, policy: Policy, salt: bytes) -> dict:
     headers = minimize_headers(msg, policy, salt)
     return {"id": msg.id, "thread_id": msg.thread_id, **headers,
+            # State flags so the agent can tell inbox vs archived and read vs
+            # unread (trusted system labels, not attacker-controlled content).
+            "in_inbox": "INBOX" in msg.label_ids,
+            "unread": "UNREAD" in msg.label_ids,
             "snippet": untrusted(msg.snippet, "gmail_snippet")}
 
 

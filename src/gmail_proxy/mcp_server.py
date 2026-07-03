@@ -122,11 +122,17 @@ def build_mcp(ctx: AppContext) -> FastMCP:
         older_than: str | None = None,
         after: str | None = None,
         before: str | None = None,
+        include_archived: bool = False,
         max_results: int = 25,
         page_token: str | None = None,
         fresh: bool = False,
     ) -> dict:
         """List message summaries in an allowed Gmail category.
+
+        By DEFAULT this lists only messages still in the **inbox** — archiving a
+        message (gmail_archive_message) removes it from the inbox, so it will no
+        longer appear here. Pass `include_archived=true` to also list archived
+        messages. Each summary carries `in_inbox` (false = archived) and `unread`.
 
         `category` is a short name (primary/social/promotions/updates/forums); omit
         to search all allowed categories. `newer_than`/`older_than` look like `7d`,
@@ -140,8 +146,8 @@ def build_mcp(ctx: AppContext) -> FastMCP:
         return _call("gmail_list_messages", {
             "category": category, "unread_only": unread_only, "from": sender,
             "subject": subject, "newer_than": newer_than, "older_than": older_than,
-            "after": after, "before": before, "max_results": max_results,
-            "page_token": page_token, "fresh": fresh,
+            "after": after, "before": before, "include_archived": include_archived,
+            "max_results": max_results, "page_token": page_token, "fresh": fresh,
         })
 
     @mcp.tool()
@@ -179,7 +185,12 @@ def build_mcp(ctx: AppContext) -> FastMCP:
 
     @mcp.tool()
     def gmail_archive_message(id: str) -> dict:
-        """Archive an in-scope message (remove it from the inbox)."""
+        """Archive an in-scope message: remove it from the inbox.
+
+        After this, the message no longer appears in gmail_list_messages unless you
+        pass `include_archived=true`. It is not deleted — it keeps its category and
+        labels and is still readable by id.
+        """
         return _call("gmail_archive_message", {"id": id})
 
     @mcp.tool()
@@ -194,7 +205,7 @@ def build_mcp(ctx: AppContext) -> FastMCP:
 
     @mcp.tool()
     def gmail_counts(category: str | None = None, fresh: bool = False) -> dict:
-        """Cheap unread counts per allowed category. `fresh=true` bypasses cache."""
+        """Cheap unread-in-inbox counts per allowed category. `fresh=true` bypasses cache."""
         return _call("gmail_counts", {"category": category, "fresh": fresh})
 
     @mcp.tool()
