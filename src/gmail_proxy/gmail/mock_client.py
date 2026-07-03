@@ -75,6 +75,8 @@ class MockGmail(GmailBackend):
                 return False
         if "is:unread" in q and "UNREAD" not in m.label_ids:
             return False
+        if "in:inbox" in q and "INBOX" not in m.label_ids:
+            return False
         for spec in re.findall(r"newer_than:(\d+[dmy])", q):
             if _parse_iso(m.internal_date) < _relative_cutoff(self._now, spec):
                 return False

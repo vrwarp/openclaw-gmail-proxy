@@ -36,18 +36,31 @@ auditable by the operator.
 
 ## What you can do
 
-- `gmail_list_messages(category?, unread_only?, sender?, subject?, newer_than?, older_than?, max_results?)`
+- `gmail_list_messages(category?, unread_only?, sender?, subject?, newer_than?, older_than?, include_archived?, max_results?)`
   — list message summaries. `category` is one of the allowed short names
   (omit to search all allowed categories). Dates look like `7d`, `2m`, `1y`.
+  **By default this lists only messages in the inbox.** Each summary carries
+  `in_inbox` (`false` = archived) and `unread`. Pass `include_archived=true` to
+  also list archived messages.
 - `gmail_get_message(id)` — fetch one message's minimized body.
 - `gmail_get_thread(id)` — fetch a thread (out-of-scope messages are dropped).
 - `gmail_modify_labels(id, add_labels?, remove_labels?)` — toggle allowed labels
   (e.g. mark read by removing `UNREAD`, star with `STARRED`, apply a user label).
-- `gmail_archive_message(id)` — remove a message from the inbox.
+- `gmail_archive_message(id)` — remove a message from the inbox. It's not
+  deleted (keeps its category/labels, still readable by id), but it drops out of
+  the default `gmail_list_messages` view — that's how you clear the inbox.
 - `gmail_trash_message(id)` — move to trash (only if the operator enabled it).
 - `gmail_list_labels()` — see which labels you may apply.
-- `gmail_counts(category?)` — cheap unread counts.
+- `gmail_counts(category?)` — cheap unread **in-inbox** counts.
 - `gmail_get_profile()` — the scoped account + which categories you have.
+
+## Inbox vs. archived
+
+The inbox is your working set. `gmail_list_messages` and `gmail_counts` are
+inbox-only by default, so **archiving a message makes it disappear from your
+list** — that is the expected, successful outcome, not an error. To find
+something you (or the user) archived earlier, pass `include_archived=true`.
+Check each summary's `in_inbox` flag if you're unsure of a message's state.
 
 ## Freshness & caching
 

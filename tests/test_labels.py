@@ -48,7 +48,7 @@ def test_query_ors_label_with_category():
 
 
 def test_query_label_only():
-    assert build_query(set(), allowed_label_names=["My Label"]) == "(label:My-Label)"
+    assert build_query(set(), allowed_label_names=["My Label"]) == "(label:My-Label) in:inbox"
 
 
 # --- tool integration (mock backend has m007 = CATEGORY_UPDATES + Receipts) --

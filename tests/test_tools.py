@@ -56,6 +56,33 @@ def test_archive_removes_inbox(ctx):
     assert r["archived"] is True
 
 
+def test_list_is_inbox_only_by_default(ctx):
+    # m012 is an archived promotion (CATEGORY_PROMOTIONS, no INBOX).
+    r = call(ctx, "gmail_list_messages", category="promotions")
+    ids = [m["id"] for m in r["messages"]]
+    assert "m012" not in ids
+    assert r["_control"]["archived_included"] is False
+    assert all(m["in_inbox"] is True for m in r["messages"])  # state flag exposed
+
+
+def test_include_archived_returns_archived(ctx):
+    r = call(ctx, "gmail_list_messages", category="promotions", include_archived=True)
+    ids = [m["id"] for m in r["messages"]]
+    assert "m012" in ids and r["_control"]["archived_included"] is True
+    m012 = next(m for m in r["messages"] if m["id"] == "m012")
+    assert m012["in_inbox"] is False
+
+
+def test_archived_message_disappears_from_default_list(ctx):
+    # The exact confusion for small models: archive -> gone from the default view.
+    call(ctx, "gmail_archive_message", id="m001")
+    default_ids = [m["id"] for m in call(ctx, "gmail_list_messages", category="promotions")["messages"]]
+    assert "m001" not in default_ids
+    all_ids = [m["id"] for m in
+               call(ctx, "gmail_list_messages", category="promotions", include_archived=True)["messages"]]
+    assert "m001" in all_ids  # still there, just archived
+
+
 def test_cannot_smuggle_category(ctx):
     with pytest.raises(errors.ProxyError) as ei:
         call(ctx, "gmail_modify_labels", id="m001", remove_labels=["CATEGORY_PROMOTIONS"])
