@@ -103,12 +103,15 @@ The **entire Gmail bootstrap happens in the admin UI** — no CLI, no
 5. **Set scope** on the **Configuration** page. (Enabling **Primary** grants
    near full-mailbox read/modify — the UI flags this.)
 6. **Register with OpenClaw:** issue a credential on the **Credentials** page,
-   merge
-   [`openclaw-plugin/mcp-registration.json`](openclaw-plugin/mcp-registration.json)
-   into `~/.openclaw/openclaw.json`, install
-   [`openclaw-plugin/SKILL.md`](openclaw-plugin/SKILL.md), and set the agent's
-   `GMAIL_PROXY_TOKEN` to that credential. The Setup page prints the exact
-   registration snippet to copy.
+   then follow
+   [`openclaw-plugin/INTEGRATION.md`](openclaw-plugin/INTEGRATION.md) — register
+   the MCP server (merge
+   [`mcp-registration.json`](openclaw-plugin/mcp-registration.json) or
+   `openclaw mcp add`), **wire the token into the gateway's environment** (the
+   header `${GMAIL_PROXY_TOKEN}` is resolved by the gateway, not the CLI — so the
+   CLI's "missing env var" warning is cosmetic), install
+   [`SKILL.md`](openclaw-plugin/SKILL.md), and run the `curl` verify. The Setup
+   page prints the exact registration snippet to copy.
 
 > **Network:** keep the MCP port (`8443`) reachable only from the VM (host
 > firewall / private docker network); keep the admin UI (`8081`) on `127.0.0.1`
@@ -238,7 +241,7 @@ src/gmail_proxy/        proxy server
   mcp_server.py         MCP Streamable-HTTP endpoint + per-agent bearer auth
   admin/                FastAPI admin UI
   cache.py              caching backend
-openclaw-plugin/        SKILL.md + example MCP registration
+openclaw-plugin/        SKILL.md, example MCP registration, INTEGRATION.md (agent-side wiring)
 scripts/oauth_bootstrap.py   optional CLI alternative to the web-UI connect
 tests/                  pytest suite (+ Playwright e2e)
 DESIGN.md               full design & threat model
