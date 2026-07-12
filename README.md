@@ -88,7 +88,10 @@ The **entire Gmail bootstrap happens in the admin UI** — no CLI, no
 1. **Google Cloud:** create a project, enable the **Gmail API**, and create an
    OAuth **Web application** client. Register one redirect URI —
    `http://localhost:8081/setup/gmail/callback` (the Setup page shows the exact
-   value to paste back).
+   value to paste back). On the **OAuth consent screen**, set the **publishing
+   status to "In production"** — while it is left in **"Testing"**, Google expires
+   the refresh token **7 days after you connect**, so the link silently drops
+   about once a week (see [Troubleshooting](#troubleshooting)).
 2. **Configure & run:** `cp .env.example .env` (optionally set `ADMIN_TOKEN` to
    pin your own admin login), then `docker compose up -d`. If you leave
    `ADMIN_TOKEN` blank, a random one is generated on first start and printed to
@@ -132,6 +135,53 @@ The **entire Gmail bootstrap happens in the admin UI** — no CLI, no
 > [`scripts/oauth_bootstrap.py`](scripts/oauth_bootstrap.py), can mint the token
 > out-of-band (write it to the mapped data volume as `token.json`). The web-UI
 > flow above is the supported path.
+
+## Troubleshooting
+
+### The Gmail link disconnects on its own after about a week
+
+**Cause:** your OAuth **consent screen is in "Testing" publishing status.** Google
+expires refresh tokens issued by a Testing-mode app **7 days after consent**,
+*unconditionally* — the clock is a wall-clock timer from the moment you clicked
+**Connect Gmail**, and it is **not** reset by using the token or by any periodic
+refresh. There is no "weekly keep-alive" that can prevent this, and the proxy
+runs no background refresh job by design. When the token expires the next Gmail
+call fails with `invalid_grant` ("Token has been expired or revoked"), which the
+admin UI surfaces as *"The Google authorization expired or was revoked — click
+Connect Gmail to re-authorize."*
+
+**Fix (one-time):**
+
+1. In **[Google Cloud Console](https://console.cloud.google.com/) → APIs &
+   Services → OAuth consent screen** (the *Audience* page), change **Publishing
+   status** from **Testing** to **In production** ("Publish app").
+2. Because `gmail.modify` is a *restricted* scope, an unverified app shows a
+   "Google hasn't verified this app" warning on reconnect. For your own single
+   account this is fine — click **Advanced → Go to (app) (unsafe)**. Full Google
+   verification is only needed to remove that warning or to serve many external
+   users.
+3. On the admin **Setup** page, click **Connect Gmail** once more to mint a fresh,
+   non-expiring refresh token.
+
+Once the app is in production the token stays valid indefinitely, unless one of
+Google's normal revocation conditions applies: **6 months of non-use**, you
+revoke access at [myaccount.google.com/permissions](https://myaccount.google.com/permissions),
+a Google account-password change (for Gmail scopes), the 50-refresh-tokens-per-client
+cap is exceeded, or the app loses verification for sensitive scopes.
+
+### "Connect Gmail" fails, or reads say the token expired / was revoked
+
+- **`invalid_grant` / "expired or revoked"** — the stored token is dead
+  (Testing-mode expiry above, a revoked grant, or a password change). Re-run
+  **Connect Gmail** on the Setup page to reconnect.
+- **"Gmail API has not been used / is disabled"** — enable the **Gmail API** in
+  the OAuth client's Google Cloud project, wait a minute, then reconnect.
+- **"access_denied"** — if the app is in **Testing**, add your account under
+  **Test users** on the OAuth consent screen (or publish to production per above).
+- **"Google did not return a refresh token"** — a prior grant already exists;
+  revoke it at [myaccount.google.com/permissions](https://myaccount.google.com/permissions)
+  and reconnect (the connect flow requests `access_type=offline` + `prompt=consent`,
+  so a fresh consent yields a new refresh token).
 
 ## Persistence
 

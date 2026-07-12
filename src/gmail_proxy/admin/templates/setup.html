@@ -49,6 +49,12 @@
     enable the Gmail API and create an OAuth <strong>Web application</strong> client. Register the redirect URI below,
     then paste the client id + secret here.
   </p>
+  <p class="hint" style="margin-top:0">
+    ⚠ On the <a href="https://console.cloud.google.com/apis/credentials/consent" target="_blank" rel="noopener">OAuth consent screen</a>,
+    set the publishing status to <strong>“In production.”</strong> While it stays in <strong>“Testing,”</strong>
+    Google expires the refresh token <strong>7 days after you connect</strong> — the link drops on its own
+    about once a week and you have to reconnect here.
+  </p>
   <form method="post" action="/setup/gmail/client">
     <div class="field"><label>Client ID</label>
       <input type="text" name="client_id" value="{{ client.client_id if client else '' }}"
